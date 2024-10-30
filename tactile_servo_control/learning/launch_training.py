@@ -3,6 +3,7 @@ python launch_training.py -r sim -s tactip -m simple_cnn -t edge_2d
 """
 import os
 import itertools as it
+import torch
 
 from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH, BASE_MODEL_PATH
 from tactile_image_processing.utils import make_dir
@@ -37,6 +38,11 @@ def launch(args):
         # setup save dir
         save_dir = os.path.join(BASE_MODEL_PATH, output_dir, args.task, model_dir_name)
         make_dir(save_dir)
+        
+        # give feedback to user
+        print(f"Getting training data from {train_data_dirs}")
+        print(f"Getting validation data from {val_data_dirs}")
+        print(f"Saving model to {save_dir}")
 
         # setup parameters
         learning_params, model_params, label_params, image_params = setup_training(
@@ -103,9 +109,11 @@ if __name__ == "__main__":
         tasks=['edge_2d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
-        models=['simple_cnn'],
-        model_version=[''],
+        models=['posenet_cnn'],
+        model_version=['1'],
         device='cuda'
     )
+    
+    torch.cuda.empty_cache()
 
     launch(args)

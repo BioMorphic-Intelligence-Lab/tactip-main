@@ -49,7 +49,8 @@ def create_objective_func(
         ]
 
         # set parameters: indexed and non-indexed
-        print(f"\nTrial: {trial+1}\n")
+        print(f"\nTrial: {trial+1}")
+        print("Set hyperparameters:")
         for arg, val in args.items():
             print(f'{arg}:{val}')
 
@@ -62,6 +63,7 @@ def create_objective_func(
                 else:
                     if arg in params:
                         params[arg] = val
+        print("")
 
         # create labels and model
         label_encoder = LabelEncoder(label_params, device)
@@ -154,6 +156,7 @@ def format_params(params):
 def launch(args, space, max_evals=20, n_startup_jobs=10):
 
     output_dir = '_'.join([args.robot, args.sensor])
+    print(f"Output directory: {output_dir}")
 
     for args.task, args.model in it.product(args.tasks, args.models):
 
@@ -190,6 +193,7 @@ def launch(args, space, max_evals=20, n_startup_jobs=10):
             csv_row_to_label,
             **image_params['image_processing']
         )
+        print(f"Number of batches per epoch: {train_generator.__len__()}")
 
         # create the error plotter
         error_plotter = RegressionPlotter(label_params, save_dir)
@@ -244,7 +248,12 @@ if __name__ == "__main__":
         "target_weights_1": hp.uniform(label="target_weights_1", low=0.5, high=1.5),
         # "activation": hp.choice(label="activation", options=('relu', 'elu')),
         # "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)),
+        # "conv_kernel_sizes": hp.choice(label="conv_kernel_sizes", options=([3,]*2, [3,]*4 ,[3,]*8, [3,]*16, [3,]*32, [3,]*64, [3,]*128, [3,]*256, [3,]*512)),
+        # "fc_layers": hp.choice(label="fc_layers", options=()),
+        # 
+        # "activation": hp.choice(label="activation", options=('relu', 'elu')),
         "dropout": hp.uniform(label="dropout", low=0, high=0.5),
+        # "batch_size": hp.choice(label="batch_size", options=(16, 32, 64, 128)),
     }
 
-    launch(args, space, max_evals=2, n_startup_jobs=1)
+    launch(args, space, max_evals=20, n_startup_jobs=10)
