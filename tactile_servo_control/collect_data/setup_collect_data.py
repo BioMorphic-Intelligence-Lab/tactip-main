@@ -6,7 +6,7 @@ BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
-    "ur_tactip":    (0, 0, 640, 480), # We just use the full resolution and set it in bbox_dict below
+    "ur_tactip":    (0, 0, 440, 440), # Set resolution to final intended resolution
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
@@ -44,7 +44,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     else:
         sensor_image_params = {
             'type': sensor_type,
-            'source': 0, # Change here to use different cameras, 0 for default cam, 4 for usb
+            'source': 4, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
             'bbox': bbox_dict[sensor_type]
@@ -112,7 +112,7 @@ def setup_env_params(robot, save_dir=None):
     work_frame_dict = {
         'cr':    (20, -475, 100, -180, 0, 90),
         'mg400': (285,  0, 0, -180, 0, 0),
-        'ur':    (542, -15, -204, 180, 0, 0),
+        'ur':    (624.3, 6.5, -286, 180, 0, 0),
         'sim':   (650, 0, 50, -180, 0, 0),
     } # 180 deg rotation around x or y because z points out of tool flange and is positive up in base frame
 
@@ -121,7 +121,7 @@ def setup_env_params(robot, save_dir=None):
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
-        'ur':    (0, 0, -79.5, 0, 0, 0),
+        'ur':    (0, 0, -77.3, 0, 0, 0),
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
 

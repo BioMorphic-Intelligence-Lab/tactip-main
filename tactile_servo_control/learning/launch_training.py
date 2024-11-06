@@ -6,6 +6,7 @@ import itertools as it
 import torch
 
 from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH, BASE_MODEL_PATH
+# from tactile_data.tactile_data import BASE_DATA_PATH, BASE_MODEL_PATH
 from tactile_image_processing.utils import make_dir
 from tactile_learning.supervised.image_generator import ImageDataGenerator
 from tactile_learning.supervised.models import create_model
@@ -63,6 +64,16 @@ def launch(args):
             csv_row_to_label,
             **image_params['image_processing']
         )
+        
+        # give user feedback about loaded data
+        print(f"Loaded {len(train_generator)} training samples")
+        print(f"Loaded {len(val_generator)} validation samples")
+        print(f"Training for {learning_params['epochs']} epochs")
+        print(f"Batch size: {learning_params['batch_size']}")
+        print(f"Learning rate: {learning_params['lr']}")
+        print(f"Model: {args.model}")
+        print(f"Task: {args.task}")
+        print(f"Device: {args.device}")
 
         # create the label encoder/decoder and plotter
         label_encoder = LabelEncoder(label_params, args.device)
@@ -109,8 +120,8 @@ if __name__ == "__main__":
         tasks=['edge_2d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
-        models=['posenet_cnn'],
-        model_version=['1'],
+        models=['simple_cnn'],
+        model_version=['replica'],
         device='cuda'
     )
     

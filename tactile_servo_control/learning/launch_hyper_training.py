@@ -246,14 +246,9 @@ if __name__ == "__main__":
 
     space = {
         "target_weights_1": hp.uniform(label="target_weights_1", low=0.5, high=1.5),
-        # "activation": hp.choice(label="activation", options=('relu', 'elu')),
-        # "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)),
-        # "conv_kernel_sizes": hp.choice(label="conv_kernel_sizes", options=([3,]*2, [3,]*4 ,[3,]*8, [3,]*16, [3,]*32, [3,]*64, [3,]*128, [3,]*256, [3,]*512)),
-        # "fc_layers": hp.choice(label="fc_layers", options=()),
-        # 
-        # "activation": hp.choice(label="activation", options=('relu', 'elu')),
+        "activation": hp.choice(label="activation", options=('relu', 'elu')),
+        "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)),
         "dropout": hp.uniform(label="dropout", low=0, high=0.5),
-        # "batch_size": hp.choice(label="batch_size", options=(16, 32, 64, 128)),
     }
 
     launch(args, space, max_evals=20, n_startup_jobs=10)
