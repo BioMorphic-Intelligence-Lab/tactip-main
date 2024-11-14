@@ -3,11 +3,11 @@ import shutil
 import numpy as np
 
 from tactile_image_processing.utils import load_json_obj, save_json_obj
-from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES
+from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES
 
 
 def csv_row_to_label(row):
-    row_dict = {label: np.array(row[label]) for label in POSE_LABEL_NAMES}
+    row_dict = {label: np.array(row[label]) for label in POSE_LABEL_NAMES+SHEAR_LABEL_NAMES}
     return row_dict
 
 
@@ -15,8 +15,8 @@ def setup_learning(save_dir=None):
 
     learning_params = {
         'seed': 42,
-        'batch_size': 64,
-        'epochs': 10,
+        'batch_size': 16,
+        'epochs': 50,
         'lr': 1e-4,
         'lr_factor': 0.5,
         'lr_patience': 10,
@@ -135,6 +135,7 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
 
     target_label_names_dict = {
         'surface_3d': ['pose_z', 'pose_Rx', 'pose_Ry'],
+        'surface_6d': ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
         'edge_2d':    ['pose_x', 'pose_Rz'],
         'edge_3d':    ['pose_x', 'pose_z', 'pose_Rz'],
         'edge_5d':    ['pose_x', 'pose_z', 'pose_Rx', 'pose_Ry', 'pose_Rz'],
@@ -142,6 +143,7 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
 
     target_weights_dict = {
         'surface_3d': [1, 1, 1],
+        'surface_6d': [1, 1, 1, 2, 2, 4],
         'edge_2d':    [1, 1],
         'edge_3d':    [1, 1, 1],
         'edge_5d':    [1, 1, 1, 1, 1],
@@ -151,16 +153,16 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
     llims, ulims = [], []
     for data_dir in data_dirs:
         collect_params = load_json_obj(os.path.join(data_dir, 'collect_params'))
-        llims.append(collect_params['pose_llims'])
-        ulims.append(collect_params['pose_ulims'])
-
+        llims.append(collect_params['pose_llims']+collect_params['shear_llims'])
+        ulims.append(collect_params['pose_ulims']+collect_params['shear_ulims'])
+        
     model_label_params = {
         'target_label_names': target_label_names_dict[task_name],
         'target_weights': target_weights_dict[task_name],
-        'label_names': POSE_LABEL_NAMES,
+        'label_names': POSE_LABEL_NAMES+SHEAR_LABEL_NAMES,
         'llims': tuple(np.min(llims, axis=0).astype(float)),
         'ulims': tuple(np.max(ulims, axis=0).astype(float)),
-        'periodic_label_names': ['pose_Rz']
+        'periodic_label_names': ['pose_Rx', 'pose_Ry', 'pose_Rz']
     }
 
     # save parameters

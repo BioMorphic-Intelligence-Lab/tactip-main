@@ -28,12 +28,19 @@ def launch(args):
 
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
 
-        # data dirs - list of directories combined in generator
+        # small hack to deal with pose and shear separation for surface task
+        # this way you can specify either surface_3d or surface_6d with only surface_3d data
+        if args.task == 'surface_6d':
+            task_for_dir_name = 'surface_3d'
+        else:
+            task_for_dir_name = args.task
+
+        # data dirs - list of directories combined in generator        
         train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.train_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.train_dirs
         ]
         val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.val_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.val_dirs
         ]
 
         # setup save dir
@@ -121,7 +128,7 @@ if __name__ == "__main__":
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
-        model_version=['replica'],
+        model_version=['test'],
         device='cuda'
     )
     
