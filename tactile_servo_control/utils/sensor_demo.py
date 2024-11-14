@@ -10,6 +10,7 @@ import matplotlib.animation as animation
 import matplotlib.ticker as ticker
 import matplotlib.patches as patches
 import numpy as np
+import pandas as pd
 
 from tactile_image_processing.utils import load_json_obj
 from tactile_image_processing.image_transforms import process_image
@@ -72,7 +73,7 @@ def setup_sensor(args):
         label_encoder,
         device=args.device
     )
-    
+    print(f"label names: {pose_model.target_label_names}")
     return sensor, pose_model
 
 def run(sensor, model):
@@ -93,14 +94,24 @@ def run(sensor, model):
 
     # Top row left: Running plot
     ax1 = fig.add_subplot(gs[0, 0:2])
-    ax1.set_title('Predicted pose components over time')
+    if 'shear_x' in model.target_label_names:
+        ax1.set_title('Predicted pose- and shear components over time')
+    else:
+        ax1.set_title('Predicted pose components over time')
     ax2 = ax1.twinx()  # Create a second y-axis sharing the same x-axis
     ax1.set_xlabel('Time [s]')
+    print(model.target_label_names)
     
-    pose_z_data, pose_Rx_data, pose_Ry_data, time_data = [], [], [], []
-    line1, = ax2.plot([], [], 'b-', label='Pose z (Right Y-Axis)')
-    line2, = ax1.plot([], [], 'g-', label='Pose Rx (Left Y-Axis)')
-    line3, = ax1.plot([], [], 'r-', label='Pose Ry (Left Y-Axis)')
+    time_data = []
+    pose_data = {label: [] for label in model.target_label_names}
+    
+    line_list = []
+    for label_name in model.target_label_names:
+        if "R" in label_name: # Check if label is rotation -->ax1
+            line, = ax1.plot([], [], label=f'{label_name} (Left Y-axis)')
+        else: # Otherwise it's a translation --> ax2
+            line, = ax2.plot([], [], label=f'{label_name} (Right Y-axis)')
+        line_list.append(line)
     
     # Set up the left y-axis limits
     ax1.set_ylim(-25., 30.)
@@ -142,14 +153,13 @@ def run(sensor, model):
 
     # Function to initialize the plot
     def init():
-        line1.set_data([], [])
-        line2.set_data([], [])
-        line3.set_data([], [])
+        for line in line_list:
+            line.set_data([], [])
         image_plot1.set_data(np.zeros((480, 640, 3)))
         image_plot2.set_data(np.zeros((440, 440)))
         image_plot3.set_data(np.zeros((440, 440)))
         text_display.set_text('')
-        return line1, line2, line3, image_plot1, image_plot2, image_plot3, text_display
+        return line_list + [image_plot1, image_plot2, image_plot3, text_display]
 
     # Function to update the plot at each frame
     def update(frame):
@@ -172,29 +182,27 @@ def run(sensor, model):
         #print(f"frame: {frame}")
         print(f"\n Predicted pose: {pred_pose}")
         
-        pose_z_data.append(pred_pose[2])
-        pose_Rx_data.append(pred_pose[3])
-        pose_Ry_data.append(pred_pose[4])
+        # Append new data
         time_data.append(time_counter)
+        for i, label in enumerate(model.label_names):
+            if label in pose_data.keys():
+                pose_data[label].append(pred_pose[i])
+
         # Maintain only the last 10 seconds of data
         time_window_start = time_counter - MAX_PLOT_TIME
         while time_data and time_data[0] < time_window_start:
             time_data.pop(0)
-            pose_z_data.pop(0)
-            pose_Rx_data.pop(0)
-            pose_Ry_data.pop(0)
+            for label in model.target_label_names:
+                pose_data[label].pop(0)
         
         # trim data lists to the last 10 seconds
         time_window_start = max(0, time_counter - MAX_PLOT_TIME)
-        pruned_time_data = [t for t in time_data if t >= time_window_start]
-        pruned_z_data = pose_z_data[-len(pruned_time_data):]
-        pruned_Rx_data = pose_Rx_data[-len(pruned_time_data):]
-        pruned_Ry_data = pose_Ry_data[-len(pruned_time_data):]
         
-        # Update the lines with the latest data (only last 10 seconds)
-        line1.set_data(pruned_time_data, pruned_z_data)
-        line2.set_data(pruned_time_data, pruned_Rx_data)
-        line3.set_data(pruned_time_data, pruned_Ry_data)
+        # Update lines
+        pruned_time_data = [t for t in time_data if t >= time_window_start]
+        for i, label in enumerate(model.target_label_names):
+            pruned_data = pose_data[label][-len(pruned_time_data):]
+            line_list[i].set_data(pruned_time_data, pruned_data)
 
         # Update x-axis to show only the last 10 seconds
         ax1.set_xlim(time_window_start, time_counter)
@@ -203,18 +211,17 @@ def run(sensor, model):
         new_image_data1 = raw_img
         new_image_data2 = sensor_img.astype(np.float64)/255.0
         new_image_data3 = processed_img.astype(np.float64)/255.0
-        image_plot1.set_data(raw_img)
+        image_plot1.set_data(new_image_data1)
         image_plot2.set_data(new_image_data2)
         image_plot3.set_data(new_image_data3)
         
-        # Update numerical display with the last values
-        text_display.set_text(f'Current Pose Values:\n'
-                            f'Pose Z: {pred_pose[2]:.2f} [mm]\n'
-                            f'Pose Rx: {pred_pose[3]:.2f} [deg]\n'
-                            f'Pose Ry: {pred_pose[4]:.2f} [deg]\n'
-                            f'Model evaluation time: {(end_time-start_time)*1000:.2f} [us]')
+        # Update numerical display
+        text_display.set_text(
+            '\n'.join([f'{label}: {pose_data[label][-1]:.2f}' for i, label in enumerate(model.target_label_names)]) +
+            f'\nModel evaluation time: {(end_time - start_time) * 1000:.2f} [ms]'
+        )
 
-        return line1, line2, line3, image_plot1, image_plot2, image_plot3, text_display
+        return line_list + [image_plot1, image_plot2, image_plot3, text_display]
 
     # Create the animation
     ani = animation.FuncAnimation(fig, update, frames=np.linspace(0, 10, 50), init_func=init, blit=False)
@@ -226,9 +233,9 @@ if __name__ == "__main__":
     args = parse_args(
         robot='ur',
         sensor='tactip',
-        tasks=['surface_3d'],
+        tasks=['surface_6d'],
         models=['simple_cnn'],
-        model_version=['replica'],
+        model_version=['test'],
         run_version=[''],
         device='cuda'
     )
