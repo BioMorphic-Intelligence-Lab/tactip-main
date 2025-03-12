@@ -7,10 +7,7 @@ matplotlib.use('TkAgg')  # Ensure a suitable backend is used
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import matplotlib.ticker as ticker
-import matplotlib.patches as patches
 import numpy as np
-import pandas as pd
 
 from tactile_image_processing.utils import load_json_obj
 from tactile_image_processing.image_transforms import process_image
@@ -110,7 +107,7 @@ def run(sensor, model):
         if "R" in label_name: # Check if label is rotation -->ax1
             line, = ax1.plot([], [], label=f'{label_name} (Left Y-axis)')
         else: # Otherwise it's a translation --> ax2
-            line, = ax2.plot([], [], label=f'{label_name} (Right Y-axis)')
+            line, = ax2.plot([], [],c='tab:green', label=f'{label_name} (Right Y-axis)')
         line_list.append(line)
     
     # Set up the left y-axis limits
@@ -233,9 +230,9 @@ if __name__ == "__main__":
     args = parse_args(
         robot='ur',
         sensor='tactip',
-        tasks=['surface_6d'],
+        tasks=['surface_3d'],
         models=['simple_cnn'],
-        model_version=['test'],
+        model_version=['b2_1'],
         run_version=[''],
         device='cuda'
     )

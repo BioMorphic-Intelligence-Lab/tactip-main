@@ -128,7 +128,7 @@ if __name__ == "__main__":
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
-        model_version=['test'],
+        model_version=['b2_1'],
         device='cuda'
     )
     

@@ -13,14 +13,14 @@ CIRCLE_MASK_RADIUS = {
     "abb_tactip":   140,
     "cr_tactip":    210,
     "mg400_tactip": None,
-    "ur_tactip":    250,
+    "ur_tactip":    230,
     "sim_tactip":   240
 }
 THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
-    "ur_tactip":    [33, -39], # Determined using tune_images.py in tactile_image_processing
+    "ur_tactip":    [61, -84], # Determined using tune_images.py in tactile_image_processing
     "sim_tactip":   None
 }
 
@@ -30,9 +30,10 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     bbox_dict = { # (x0, y0, x1, y1), y positive downward and x positive rightwards from top left corner
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
         'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
-        'aerial-A3': (80, 15, 520, 455)
+        'aerial-A3': (80, 15, 520, 455),
+        'aerial-B2': (110, 25, 550, 465)
     }
-    sensor_type = 'aerial-A3'  # TODO: Fix hardcoded sensor type
+    sensor_type = 'aerial-B2'  # TODO: Fix hardcoded sensor type
 
     if 'sim' in robot:
         sensor_image_params = {
@@ -63,7 +64,7 @@ def setup_collect_params(robot, task, save_dir=None):
 
     # [min, max] for each dimension
     pose_lims_dict = {
-        'surface_3d': [(0, 0, 1,  -25, -25,    0), (0, 0, 3, 25, 25,   0)],
+        'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3, 25, 25,   0)],
         'edge_2d':    [(-5, 0, 3,   0,   0, -180), (5, 0, 4,  0,  0, 180)],
         'edge_3d':    [(-5, 0, 1,   0,   0, -180), (5, 0, 5,  0,  0, 180)],
         'edge_5d':    [(-5, 0, 1, -25, -25, -180), (5, 0, 5, 25, 25, 180)],
@@ -112,7 +113,7 @@ def setup_env_params(robot, save_dir=None):
     work_frame_dict = {
         'cr':    (20, -475, 100, -180, 0, 90),
         'mg400': (285,  0, 0, -180, 0, 0),
-        'ur':    (624.3, 6.5, -286, 180, 0, 0),
+        'ur':    (571, -127, -286, 180, 0, 0),
         'sim':   (650, 0, 50, -180, 0, 0),
     } # 180 deg rotation around x or y because z points out of tool flange and is positive up in base frame
 
@@ -121,7 +122,7 @@ def setup_env_params(robot, save_dir=None):
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
-        'ur':    (0, 0, -77.3, 0, 0, 0),
+        'ur':    (0, 0, -75.2, 0, 0, 0),
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
 
