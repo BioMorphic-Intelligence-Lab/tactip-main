@@ -232,7 +232,7 @@ if __name__ == "__main__":
         sensor='tactip',
         tasks=['surface_3d'],
         models=['simple_cnn'],
-        model_version=['b2_1'],
+        model_version=['A2_1'],
         run_version=[''],
         device='cuda'
     )
