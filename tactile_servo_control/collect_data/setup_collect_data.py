@@ -20,7 +20,7 @@ THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
-    "ur_tactip":    [61, -84], # Determined using tune_images.py in tactile_image_processing
+    "ur_tactip":    [61, -11], # Determined using tune_images.py in tactile_image_processing
     "sim_tactip":   None
 }
 
@@ -31,9 +31,10 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
         'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
         'aerial-A3': (80, 15, 520, 455),
+        'aerial-A2': (80, 25, 520, 465),
         'aerial-B2': (110, 25, 550, 465)
     }
-    sensor_type = 'aerial-B2'  # TODO: Fix hardcoded sensor type
+    sensor_type = sensor  # TODO: Fix hardcoded sensor type
 
     if 'sim' in robot:
         sensor_image_params = {

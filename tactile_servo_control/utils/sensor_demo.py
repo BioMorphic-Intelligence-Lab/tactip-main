@@ -47,7 +47,7 @@ def setup_sensor(args):
         "circle_mask_radius": CIRCLE_MASK_RADIUS[embodiment],
         "thresh": THRESH[embodiment],
     }
-    sensor_image_params = setup_sensor_image_params(robot='ur',sensor='tactip')
+    sensor_image_params = setup_sensor_image_params(robot='ur',sensor='aerial-A2')
     sensor = RealSensor(sensor_image_params)
     
     # create the label encoder/decoder
