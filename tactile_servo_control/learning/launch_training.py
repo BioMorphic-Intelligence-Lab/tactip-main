@@ -122,14 +122,14 @@ def launch(args):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='sim',
+        robot='ur',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_9d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
         model_version=['A2_1'],
-        device='cuda'
+        device='cpu'
     )
     
     torch.cuda.empty_cache()
