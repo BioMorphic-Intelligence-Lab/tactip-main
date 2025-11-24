@@ -34,7 +34,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
         'aerial-A2': (80, 25, 520, 465),
         'aerial-B2': (110, 25, 550, 465)
     }
-    sensor_type = sensor  # TODO: Fix hardcoded sensor type
+    sensor_type = "A2"  # TODO: Fix hardcoded sensor type
 
     if 'sim' in robot:
         sensor_image_params = {
@@ -46,7 +46,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     else:
         sensor_image_params = {
             'type': sensor_type,
-            'source': 4, # Change here to use different cameras, 0 for default cam, 4 for usb
+            'source': 0, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
             'bbox': bbox_dict[sensor_type]
