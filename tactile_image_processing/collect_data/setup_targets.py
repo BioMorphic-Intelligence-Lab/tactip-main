@@ -9,8 +9,6 @@ OBJECT_POSE_LABEL_NAMES = ["object_x", "object_y", "object_z", "object_Rx", "obj
 FT_LABEL_NAMES = ["Fx", "Fy", "Fz", "Tx", "Ty", "Tz"]
 
 
-
-
 def setup_targets(
    collect_params,
    num_poses=100,
@@ -48,7 +46,6 @@ def setup_targets(
            *FT_LABEL_NAMES
        ]
    )
-
 
    # make geneated data predictable
    np.random.seed(collect_params.get('seed', None))
@@ -90,7 +87,6 @@ def setup_targets(
 
 
 
-
 def random_spherical(num_samples, phi_max):
    """Return uniform random sample over a spherical cap bounded by polar angle."""
    phi_max = np.radians(phi_max)                                 # maximum value of polar angle
@@ -113,7 +109,6 @@ def random_spherical(num_samples, phi_max):
 
 
 
-
 def random_disk(num_samples, r_max):
    """Return uniform random sample over a 2D circular disk of radius r_max."""
    theta = 2*np.pi * np.random.rand(num_samples)
@@ -124,11 +119,9 @@ def random_disk(num_samples, r_max):
 
 
 
-
 def random_linear(num_samples, x_max):
    """Return uniform random sample over a 1D segment [-x_max, x_max]."""
    return -x_max + 2 * x_max * np.random.rand(num_samples)
-
 
 
 

@@ -4,7 +4,7 @@ import time
 
 from tactile_image_processing.collect_data.setup_embodiment import setup_embodiment
 from tactile_image_processing.collect_data.setup_targets import setup_targets
-from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES
+from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES, FT_LABEL_NAMES
 from tactile_image_processing.utils import make_dir, save_json_obj
 
 BASE_DATA_PATH = 'temp'
@@ -76,6 +76,13 @@ def collect_data(
         image_outfile = os.path.join(image_dir, image_name)
         sensor.process(image_outfile)
 
+        # returns [Fx, Fy, Fz, Tx, Ty, Tz]
+        force_torque = robot.get_tcp_force
+        print(" Force/Torque: ", force_torque)
+
+        for j, col in enumerate(FT_LABEL_NAMES):
+            targets_df.at[i, col] = force_torque[j]
+
         # move above the target pose
         robot.move_linear(pose - clearance)
 
@@ -87,6 +94,12 @@ def collect_data(
     robot.move_linear((0, 0, -100, 0, 0, 0))
     robot.move_joints((*robot.joint_angles[:-1], 0))
     robot.close()
+
+    # overwrite targets.csv with updated force/torque values
+    save_dir = os.path.dirname(image_dir)
+    target_file = os.path.join(save_dir, "targets.csv")
+    targets_df.to_csv(target_file, index=False)
+    print(f"Updated targets saved to {target_file}")
 
 
 if __name__ == "__main__":
