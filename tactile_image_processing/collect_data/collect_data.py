@@ -1,9 +1,10 @@
 import os
 import numpy as np
+import time
 
 from tactile_image_processing.collect_data.setup_embodiment import setup_embodiment
 from tactile_image_processing.collect_data.setup_targets import setup_targets
-from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES
+from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES, FT_LABEL_NAMES
 from tactile_image_processing.utils import make_dir, save_json_obj
 
 BASE_DATA_PATH = 'temp'
@@ -21,26 +22,32 @@ def collect_data(
     object_pose_label_names = collect_params.get('object_pose_label_names', OBJECT_POSE_LABEL_NAMES)
 
     # start 50mm above workframe origin with zero joint 6
+    print("Moving to 50 mm above workframe origin")
     robot.move_linear((0, 0, -50, 0, 0, 0))
     robot.move_joints([*robot.joint_angles[:-1], 0])
 
     # collect reference image
+    print(f"Collecting reference image in {image_dir}/image_0.png")
     image_outfile = os.path.join(image_dir, 'image_0.png')
     sensor.process(image_outfile)
+    time.sleep(5)
 
     # clear object by 10mm
+    print("Moving to 10 mm above workframe origin")
     clearance = (0, 0, 10, 0, 0, 0)
     robot.move_linear(np.zeros(6) - clearance)
     joint_angles = robot.joint_angles
     saved_obj_label = ''
 
     # ==== data collection loop ====
+    print("Starting data collection sequence")
     for i, row in targets_df.iterrows():
         image_name = row.loc["sensor_image"]
         obj_label = row.loc["object_label"]
         pose = row.loc[pose_label_names].values.astype(float)
         shear = row.loc[shear_label_names].values.astype(float)
         obj_pose = row.loc[object_pose_label_names].values.astype(float)
+        print("Object pose: ", obj_pose)
 
         # report
         with np.printoptions(precision=1, suppress=True):
@@ -69,6 +76,13 @@ def collect_data(
         image_outfile = os.path.join(image_dir, image_name)
         sensor.process(image_outfile)
 
+        # returns [Fx, Fy, Fz, Tx, Ty, Tz]
+        force_torque = robot.get_tcp_force
+        print(" Force/Torque: ", force_torque)
+
+        for j, col in enumerate(FT_LABEL_NAMES):
+            targets_df.at[i, col] = force_torque[j]
+
         # move above the target pose
         robot.move_linear(pose - clearance)
 
@@ -76,10 +90,16 @@ def collect_data(
         if not collect_params.get('sort', False):
             robot.move_joints(joint_angles)
 
-    # finish 50mm above workframe origin then zero last joint
-    robot.move_linear((0, 0, -50, 0, 0, 0))
+    # finish 100mm above workframe origin then zero last joint
+    robot.move_linear((0, 0, -100, 0, 0, 0))
     robot.move_joints((*robot.joint_angles[:-1], 0))
     robot.close()
+
+    # overwrite targets.csv with updated force/torque values
+    save_dir = os.path.dirname(image_dir)
+    target_file = os.path.join(save_dir, "targets.csv")
+    targets_df.to_csv(target_file, index=False)
+    print(f"Updated targets saved to {target_file}")
 
 
 if __name__ == "__main__":

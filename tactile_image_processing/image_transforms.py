@@ -19,8 +19,9 @@ def process_image(
     **kwargs
 ):
     ''' Process raw image (e.g., before applying to neural network).
+    During data collection this function processes the raw image before saving.
     '''
-    if gray and len(image.shape) == 3:
+    if gray and len(image.shape) == 3 and image.shape[2] == 3:
         # Convert to gray scale
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         # Add channel axis
@@ -247,19 +248,19 @@ if __name__ == '__main__':
     from tactile_image_processing.simple_sensors import RealSensor
 
     sensor_params = {
-        'source': 1,
+        'source': 4,
     }
     
     camera = RealSensor(sensor_params)
 
     image_processing_params = {
-        'gray': False,
-        'bbox': None,
+        'gray': True,
+        'bbox': (95, 40, 535, 480),
         'dims': None,
         'stdiz': False,
         'normlz': False,
         'thresh': [11, -30],
-        'circle_mask_radius': None,
+        'circle_mask_radius': 230,
     }
 
     camera_loop(camera, image_processing_params)

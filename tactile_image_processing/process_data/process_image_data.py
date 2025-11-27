@@ -32,7 +32,7 @@ def process_image_data(path, dir_names, image_params={}):
         # process images
         image_filenames = []
         for sensor_image in targets_df.sensor_image:
-            image = cv2.imread(os.path.join(image_dir, sensor_image))
+            image = cv2.imread(os.path.join(os.path.dirname(os.path.dirname(image_dir)), sensor_image))
             image = process_image(image, **image_params)
             
             # save as image filename
@@ -106,7 +106,7 @@ def partition_data(path, dir_names, split=0.8, seed=1):
                 shutil.copy(os.path.join(path, dir_name, filename+'.json'), dir_out)
 
             # create dataframe pointing to original images (to avoid copying)
-            rel_path = os.path.join('..', '..', dir_name, 'sensor_images', '') 
+            rel_path = os.path.join(dir_name, 'sensor_images', '')
             targets_df.loc[ind, 'sensor_image'] = rel_path + targets_df[ind].sensor_image.map(str)
             targets_df[ind].to_csv(os.path.join(dir_out, 'targets.csv'), index=False)
 

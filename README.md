@@ -30,6 +30,18 @@ pip install -e .
 
 All demonstrations in this repo are intended to be run with a live TacTip sensor. Please connect a sensor before running. The correct camera source will also need to be set.
 
+### Sensor Tuning ###
+You can get the available cameras once the TacTip is connected by running 
+```
+python3 tactile_image_processing/utils/image_processing_utils.py
+```
+
+The preprocessing of the images can be tuned using the tool
+```
+python3 tactile_image_processing/utils/tune_images.py
+```
+The values will have to be manually added to the data collection script in [tactile_servo_control](https://github.com/dexterousrobot/tactile_servo_control)
+
 ### Image Processing ###
 
 <p align="center">

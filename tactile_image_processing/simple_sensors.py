@@ -27,6 +27,8 @@ class RealSensor:
         exposure = sensor_params.get('exposure', -7)
 
         self.cam = cv2.VideoCapture(source)
+        # Turn off auto-exposure and manually set exposure
+        self.cam.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
         self.cam.set(cv2.CAP_PROP_EXPOSURE, exposure)
         for _ in range(5):
             self.cam.read()  # Hack - initial camera transient
@@ -43,6 +45,9 @@ class RealSensor:
             cv2.imwrite(outfile, img)
         return img
 
+    def set_exposure(self, new_exposure):
+        self.sensor_params.update({'exposure': new_exposure})
+        self.cam.set(cv2.CAP_PROP_EXPOSURE, self.sensor_params.get('exposure', -7))
 
 class ReplaySensor:
     def __init__(self, sensor_params={}):
