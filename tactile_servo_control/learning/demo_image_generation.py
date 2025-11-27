@@ -4,7 +4,7 @@ python demo_image_generation.py -r sim -s tactip -t edge_2d
 import os
 import itertools as it
 
-from tactile_data.tactile_servo_control import BASE_DATA_PATH
+from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH
 from tactile_learning.supervised.image_generator import demo_image_generation
 
 from tactile_servo_control.learning.setup_training import setup_learning, setup_model_image

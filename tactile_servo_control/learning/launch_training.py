@@ -3,8 +3,10 @@ python launch_training.py -r sim -s tactip -m simple_cnn -t edge_2d
 """
 import os
 import itertools as it
+import torch
 
-from tactile_data.tactile_servo_control import BASE_DATA_PATH, BASE_MODEL_PATH
+from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH, BASE_MODEL_PATH
+# from tactile_data.tactile_data import BASE_DATA_PATH, BASE_MODEL_PATH
 from tactile_image_processing.utils import make_dir
 from tactile_learning.supervised.image_generator import ImageDataGenerator
 from tactile_learning.supervised.models import create_model
@@ -26,17 +28,29 @@ def launch(args):
 
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
 
-        # data dirs - list of directories combined in generator
+        # small hack to deal with pose and shear separation for surface task
+        # this way you can specify either surface_3d or surface_6d with only surface_3d data
+        if args.task == 'surface_6d':
+            task_for_dir_name = 'surface_3d'
+        else:
+            task_for_dir_name = args.task
+
+        # data dirs - list of directories combined in generator        
         train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.train_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.train_dirs
         ]
         val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.val_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.val_dirs
         ]
 
         # setup save dir
         save_dir = os.path.join(BASE_MODEL_PATH, output_dir, args.task, model_dir_name)
         make_dir(save_dir)
+        
+        # give feedback to user
+        print(f"Getting training data from {train_data_dirs}")
+        print(f"Getting validation data from {val_data_dirs}")
+        print(f"Saving model to {save_dir}")
 
         # setup parameters
         learning_params, model_params, label_params, image_params = setup_training(
@@ -57,6 +71,16 @@ def launch(args):
             csv_row_to_label,
             **image_params['image_processing']
         )
+        
+        # give user feedback about loaded data
+        print(f"Loaded {len(train_generator)} training samples")
+        print(f"Loaded {len(val_generator)} validation samples")
+        print(f"Training for {learning_params['epochs']} epochs")
+        print(f"Batch size: {learning_params['batch_size']}")
+        print(f"Learning rate: {learning_params['lr']}")
+        print(f"Model: {args.model}")
+        print(f"Task: {args.task}")
+        print(f"Device: {args.device}")
 
         # create the label encoder/decoder and plotter
         label_encoder = LabelEncoder(label_params, args.device)
@@ -98,14 +122,16 @@ def launch(args):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='sim',
+        robot='ur',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_9d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
-        model_version=[''],
-        device='cuda'
+        model_version=['A2_1'],
+        device='cpu'
     )
+    
+    torch.cuda.empty_cache()
 
     launch(args)

@@ -72,11 +72,11 @@ def process_images(args, image_params, split=None):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='sim',
+        robot='ur',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_3d'],
         data_dirs=['data'],
-        sample_nums=[5000]
+        sample_nums=[4000]
     )
     launch(args)
 

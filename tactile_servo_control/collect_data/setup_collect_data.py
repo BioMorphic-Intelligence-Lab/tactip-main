@@ -2,33 +2,39 @@ import os
 
 from tactile_image_processing.utils import save_json_obj
 
-BBOX = {
+BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
+    "ur_tactip":    (0, 0, 440, 440), # Set resolution to final intended resolution
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
     "abb_tactip":   140,
     "cr_tactip":    210,
     "mg400_tactip": None,
-    "sim_tactip":   (12, 12, 240, 240)
+    "ur_tactip":    270,
+    "sim_tactip":   240
 }
 THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
+    "ur_tactip":    [61, -11], # Determined using tune_images.py in tactile_image_processing
     "sim_tactip":   None
 }
 
 
 def setup_sensor_image_params(robot, sensor, save_dir=None):
 
-    bbox_dict = {
+    bbox_dict = { # (x0, y0, x1, y1), y positive downward and x positive rightwards from top left corner
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
-        'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20)
+        'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
+        'aerial-A3': (80, 15, 520, 455),
+        'aerial-A2': (80, 25, 520, 465),
+        'aerial-B2': (110, 25, 550, 465)
     }
-    sensor_type = 'midi'  # TODO: Fix hardcoded sensor type
+    sensor_type = "A2"  # TODO: Fix hardcoded sensor type
 
     if 'sim' in robot:
         sensor_image_params = {
@@ -40,7 +46,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     else:
         sensor_image_params = {
             'type': sensor_type,
-            'source': 0,
+            'source': 0, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
             'bbox': bbox_dict[sensor_type]
@@ -57,8 +63,9 @@ def setup_collect_params(robot, task, save_dir=None):
     if robot.split('_')[0] == 'sim':
         robot = 'sim'
 
+    # [min, max] for each dimension
     pose_lims_dict = {
-        'surface_3d': [(0, 0, 1,  -25, -25,    0), (0, 0, 5, 25, 25,   0)],
+        'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3, 25, 25,   0)],
         'edge_2d':    [(-5, 0, 3,   0,   0, -180), (5, 0, 4,  0,  0, 180)],
         'edge_3d':    [(-5, 0, 1,   0,   0, -180), (5, 0, 5,  0,  0, 180)],
         'edge_5d':    [(-5, 0, 1, -25, -25, -180), (5, 0, 5, 25, 25, 180)],
@@ -67,11 +74,12 @@ def setup_collect_params(robot, task, save_dir=None):
     shear_lims_dict = {
         'cr':      [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
         'mg400':   [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
+        'ur':      [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
         'sim':     [(0, 0, 0, 0, 0, 0),    (0, 0, 0, 0, 0, 0)],
     }
 
     object_poses_dict = {
-        'surface_3d': {'surface': (-50, 0, 0, 0, 0, 0)},
+        'surface_3d': {'surface': (0, 0, 0, 0, 0, 0)},
         'edge_2d':    {'edge': (0, 0, 0, 0, 0, 0)},
         'edge_3d':    {'edge': (0, 0, 0, 0, 0, 0)},
         'edge_5d':    {'edge': (0, 0, 0, 0, 0, 0)},
@@ -102,15 +110,20 @@ def setup_env_params(robot, save_dir=None):
     if robot.split('_')[0] == 'sim':
         robot = 'sim'
 
+    # Work frame origin in base frame in mm
     work_frame_dict = {
         'cr':    (20, -475, 100, -180, 0, 90),
         'mg400': (285,  0, 0, -180, 0, 0),
+        'ur':    (571, -127, -286, 180, 0, 0),
         'sim':   (650, 0, 50, -180, 0, 0),
-    }
+    } # 180 deg rotation around x or y because z points out of tool flange and is positive up in base frame
 
+    # Tool center point pose in the output flange frame
+    # Negative seems to be pointed outwards towards the interaction
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
+        'ur':    (0, 0, -75.2, 0, 0, 0),
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
 

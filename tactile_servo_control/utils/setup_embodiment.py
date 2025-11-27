@@ -120,7 +120,8 @@ if __name__ == '__main__':
     sensor_params = {
         "type": "standard_tactip",
         "image_size": (256, 256),
-        "show_tactile": False
+        "show_tactile": False,
+        "source": 4
     }
 
     robot = setup_embodiment(
