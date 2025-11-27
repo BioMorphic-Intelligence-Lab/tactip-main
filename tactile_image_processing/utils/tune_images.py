@@ -7,6 +7,10 @@ from matplotlib.widgets import Slider
 from tactile_image_processing.image_transforms import process_image
 from tactile_image_processing.simple_sensors import RealSensor
 
+# Set to false for using camera feed. True for using a previously captured image (specify path below).
+use_captured_data = True
+captured_image_path = '/home/martijn/ats-meta/tactile_data_shear/data/ur_tactip/surface_9d/data/sensor_images/image_10.png'
+
 def setup_sensor(exp=-7):
     bbox_dict = {
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
@@ -26,21 +30,23 @@ def setup_sensor(exp=-7):
     
     return sensor
 
-# Setup sensor
-sensor = setup_sensor()
-
 # Take an image
-image_rgb = sensor.read()
+if not use_captured_data:
+    # Setup sensor
+    sensor = setup_sensor()
+    image_rgb = sensor.read()
+else:
+    image_rgb = cv2.imread(captured_image_path, cv2.IMREAD_COLOR)
 
 # Define update function for the bounding box
 def update_image(thresh1, thresh2, cmr, x_min, x_max, y_min, y_max, set_exposure):
-    
-    # Setup sensor
-    sensor.set_exposure(new_exposure=set_exposure)
-
     # Take a new image (in case of exposure change)
-    image_rgb = sensor.read()
-    
+    if not use_captured_data:
+        sensor.set_exposure(new_exposure=set_exposure)
+        image_rgb = sensor.read()
+    else:
+        image_rgb = cv2.imread(captured_image_path, cv2.IMREAD_GRAYSCALE)
+
     # Ensure the sliders do not cross
     x_min, x_max = sorted([x_min, x_max])
     y_min, y_max = sorted([y_min, y_max])
