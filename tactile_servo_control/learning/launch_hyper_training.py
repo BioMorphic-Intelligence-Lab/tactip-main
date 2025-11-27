@@ -149,7 +149,9 @@ def format_params(params):
     if 'activation' in params_conv:
         params_conv['activation'] = ('relu', 'elu')[params['activation']]
     if 'conv_layers' in params_conv:
-        params_conv['conv_layers'] = ('[16,]*4', '[32,]*4')[params['conv_layers']]
+        params_conv['conv_layers'] = ('[8,]*4', '[16,]*4', '[32,]*4', '[64,]*4')[params['conv_layers']]
+    if 'fc_layers' in params_conv:
+        params_conv['fc_layers'] = ('[64,]*2', '[128,]*2', '[256,]*2', '[512,]*2', '[1024,]*2')[params['fc_layers']]
     return params_conv
 
 
@@ -175,6 +177,8 @@ def launch(args, space, max_evals=20, n_startup_jobs=10):
         make_dir(save_dir)
 
         # setup parameters
+        if args.task == 'surface_9d': # small hack to deal with pose and shear separation for surface task
+            args.task = 'surface_3d'
         learning_params, model_params, label_params, image_params = setup_training(
             args.model,
             args.task,
@@ -245,9 +249,13 @@ if __name__ == "__main__":
     )
 
     space = {
+        "target_weights_0": hp.uniform(label="target_weights_0", low=0.5, high=1.5),
         "target_weights_1": hp.uniform(label="target_weights_1", low=0.5, high=1.5),
+        "target_weights_2": hp.uniform(label="target_weights_2", low=0.5, high=1.5),
         "activation": hp.choice(label="activation", options=('relu', 'elu')),
-        "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)),
+        "conv_layers": hp.choice(label="conv_layers", options=([8,]*4, [16,]*4, [32,]*4, [64,]*4)),
+        "conv_kernel_sizes": hp.choice(label="conv_kernel_sizes", options=([3,]*4, [5,]*4, [7,]*4, [11, 9, 7, 5], [13, 11, 9, 7])),
+        "fc_layers": hp.choice(label="fc_layers", options=([64,]*2, [128,]*2, [256,]*2, [512,]*2, [1024,]*2)),
         "dropout": hp.uniform(label="dropout", low=0, high=0.5),
     }
 

@@ -32,6 +32,9 @@ def launch(args):
         # this way you can specify either surface_3d or surface_6d with only surface_3d data
         if args.task == 'surface_6d':
             task_for_dir_name = 'surface_3d'
+        elif args.task == 'surface_9d':
+            task_for_dir_name = 'surface_9d'
+            args.task = 'surface_3d'
         else:
             task_for_dir_name = args.task
 
@@ -128,7 +131,7 @@ if __name__ == "__main__":
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
-        model_version=['A2_1'],
+        model_version=['A3_2025'],
         device='cuda'
     )
     

@@ -32,7 +32,8 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
         'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
         'aerial-A3': (80, 15, 520, 455),
         'aerial-A2': (80, 25, 520, 465),
-        'aerial-B2': (110, 25, 550, 465)
+        'aerial-B2': (110, 25, 550, 465),
+        'aerial-nobb': (0, 0, 640, 480)
     }
     sensor_type = sensor  # TODO: Fix hardcoded sensor type
 
