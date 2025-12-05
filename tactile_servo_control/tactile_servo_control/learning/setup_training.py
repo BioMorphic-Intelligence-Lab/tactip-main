@@ -135,6 +135,7 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
 
     target_label_names_dict = {
         'surface_3d': ['pose_z', 'pose_Rx', 'pose_Ry'],
+        'surface_5d': ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y'],
         'surface_6d': ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
         'edge_2d':    ['pose_x', 'pose_Rz'],
         'edge_3d':    ['pose_x', 'pose_z', 'pose_Rz'],
@@ -143,6 +144,7 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
 
     target_weights_dict = {
         'surface_3d': [1, 1, 1],
+        'surface_5d': [1, 1, 1, 2, 2],
         'surface_6d': [1, 1, 1, 2, 2, 4],
         'edge_2d':    [1, 1],
         'edge_3d':    [1, 1, 1],

@@ -31,7 +31,10 @@ def launch(args):
         # small hack to deal with pose and shear separation for surface task
         # this way you can specify either surface_3d or surface_6d with only surface_3d data
         if args.task == 'surface_6d':
-            task_for_dir_name = 'surface_3d'
+            task_for_dir_name = 'surface_9d'
+        elif args.task == 'surface_5d':
+            task_for_dir_name = 'surface_9d'
+            args.task = 'surface_5d'
         elif args.task == 'surface_9d':
             task_for_dir_name = 'surface_9d'
             args.task = 'surface_3d'
