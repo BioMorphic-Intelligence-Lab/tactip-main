@@ -149,9 +149,11 @@ def format_params(params):
     if 'activation' in params_conv:
         params_conv['activation'] = ('relu', 'elu')[params['activation']]
     if 'conv_layers' in params_conv:
-        params_conv['conv_layers'] = ('[8,]*4', '[16,]*4', '[32,]*4', '[64,]*4')[params['conv_layers']]
+        params_conv['conv_layers'] = ('[8,]*4', '[16,]*4', '[32,]*4', '[64,]*4', '[128,]*4', '[256,]*4')[params['conv_layers']]
+    if 'conv_kernel_sizes' in params_conv:
+        params_conv['conv_kernel_sizes'] = ('[5,]*4', '[7,]*4', '[9,]*4', '[11,]*4', '[11, 9, 7, 5]', '[13, 11, 9, 7]')[params['conv_kernel_sizes']]
     if 'fc_layers' in params_conv:
-        params_conv['fc_layers'] = ('[64,]*2', '[128,]*2', '[256,]*2', '[512,]*2', '[1024,]*2')[params['fc_layers']]
+        params_conv['fc_layers'] = ('[128,]*2', '[256,]*2', '[512,]*2', '[1024,]*2', '[2048,]*2', '[512, 1024]', '[1024, 512]', '[1024, 2048]', '[2048, 1024]')[params['fc_layers']]
     return params_conv
 
 
@@ -164,21 +166,24 @@ def launch(args, space, max_evals=20, n_startup_jobs=10):
 
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
 
-        # data dirs - list of directories combined in generator
-        train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.train_dirs
-        ]
-        val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.val_dirs
-        ]
-
         # setup save dir
         save_dir = os.path.join(BASE_MODEL_PATH, output_dir, args.task, model_dir_name)
         make_dir(save_dir)
 
-        # setup parameters
         if args.task == 'surface_9d': # small hack to deal with pose and shear separation for surface task
-            args.task = 'surface_3d'
+            task_for_data_dir = 'surface_3d'
+        if args.task == 'surface_5d': # Just for the training of a 5D model on the 9D data
+            task_for_data_dir = 'surface_9d'
+
+        # data dirs - list of directories combined in generator
+        train_data_dirs = [
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_data_dir, d) for d in args.train_dirs
+        ]
+        val_data_dirs = [
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_data_dir, d) for d in args.val_dirs
+        ]
+
+        # setup parameters
         learning_params, model_params, label_params, image_params = setup_training(
             args.model,
             args.task,
@@ -254,15 +259,15 @@ if __name__ == "__main__":
         "target_weights_2": hp.uniform(label="target_weights_2", low=0.5, high=1.5),
         "target_weights_3": hp.uniform(label="target_weights_3", low=0.5, high=1.5),
         "target_weights_4": hp.uniform(label="target_weights_4", low=0.5, high=1.5),
-        "target_weights_5": hp.uniform(label="target_weights_5", low=0.5, high=1.5),
+        # "target_weights_5": hp.uniform(label="target_weights_5", low=0.5, high=1.5),
         # "target_weights_6": hp.uniform(label="target_weights_6", low=0.5, high=1.5),
         # "target_weights_7": hp.uniform(label="target_weights_7", low=0.5, high=1.5),
         # "target_weights_8": hp.uniform(label="target_weights_8", low=0.5, high=1.5),
         "activation": hp.choice(label="activation", options=('relu', 'elu')),
-        "conv_layers": hp.choice(label="conv_layers", options=([8,]*4, [16,]*4, [32,]*4, [64,]*4)),
+        "conv_layers": hp.choice(label="conv_layers", options=([8,]*4, [16,]*4, [32,]*4, [64,]*4, [128,]*4, [256,]*4)),
         "conv_kernel_sizes": hp.choice(label="conv_kernel_sizes", options=([5,]*4, [7,]*4, [9,]*4, [11,]*4, [11, 9, 7, 5], [13, 11, 9, 7])),
-        "fc_layers": hp.choice(label="fc_layers", options=([64,]*2, [128,]*2, [256,]*2, [512,]*2, [1024,]*2)),
+        "fc_layers": hp.choice(label="fc_layers", options=([128,]*2, [256,]*2, [512,]*2, [1024,]*2, [2048,]*2, [512, 1024], [1024, 512], [1024, 2048], [2048, 1024])),
         "dropout": hp.uniform(label="dropout", low=0, high=0.5),
     }
 
-    launch(args, space, max_evals=20, n_startup_jobs=10)
+    launch(args, space, max_evals=60, n_startup_jobs=10)
