@@ -1,1 +1,0 @@
-Created using Fusion 360 - only STL files available
