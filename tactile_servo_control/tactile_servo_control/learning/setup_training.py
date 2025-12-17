@@ -220,6 +220,8 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
         'surface_3d':      ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
         'surface_3d_pose': ['pose_z', 'pose_Rx', 'pose_Ry'],
         'surface_3d_shear': ['shear_x', 'shear_y', 'shear_Rz'],
+        'surface_6d':      ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
+        'surface_5d':      ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y'],
     }
 
     target_weights_dict = {
@@ -228,6 +230,8 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
         'surface_3d_pose': [1, 1, 1],
         # 'surface_3d_shear': [1, 1, 2],
         'surface_3d_shear': [1, 1, 1],
+        'surface_6d': [1, 1, 1, 1, 1, 1],
+        'surface_5d': [1, 1, 1, 1, 1],
     }
 
     # get data limits from training data

@@ -30,12 +30,19 @@ def launch(args):
             if args.init_model and args.init_model_version else None
         task_name = '_'.join(filter(None, [args.task, *args.task_version]))
 
+        if args.task == 'surface_5d':
+            task_for_data_dir = 'surface_9d'
+        if args.task == 'surface_6d':
+            task_for_data_dir = 'surface_9d'
+        else:
+            task_for_data_dir = args.task
+
         # data dirs - list of directories combined in generator
         train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.train_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_data_dir, d) for d in args.train_dirs
         ]
         val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.val_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_data_dir, d) for d in args.val_dirs
         ]
 
         # setup save dir
@@ -118,9 +125,9 @@ def launch(args):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='cr',
+        robot='ur',
         sensor='tactip',
-        tasks=['surface_3d'],
+        tasks=['surface_6d'],
         task_version=[''],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
