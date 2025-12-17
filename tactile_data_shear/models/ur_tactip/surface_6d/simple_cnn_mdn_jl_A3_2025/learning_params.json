@@ -1,0 +1,1 @@
+{"seed": 42, "batch_size": 16, "epochs": 50, "cyclic_base_lr": 1e-07, "cyclic_max_lr": 0.001, "cyclic_half_period": 5, "cyclic_mode": "triangular", "shuffle": true, "n_cpu": 1, "n_train_batches_per_epoch": null, "n_val_batches_per_epoch": null}
