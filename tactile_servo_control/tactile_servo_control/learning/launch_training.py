@@ -27,12 +27,15 @@ def launch(args):
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
         task_name = '_'.join(filter(None, [args.task, *args.task_version]))
 
+        if args.task == 'surface_5d' or args.task == 'surface_6d':
+            task_for_data_dirs = 'surface_9d'
+
         # data dirs - list of directories combined in generator
         train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.train_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_data_dirs, d) for d in args.train_dirs
         ]
         val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.val_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_data_dirs, d) for d in args.val_dirs
         ]
 
         # setup save dir
@@ -98,14 +101,14 @@ def launch(args):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='cr',
+        robot='ur',
         sensor='tactip',
-        tasks=['surface_3d'],
+        tasks=['surface_6d'],
         task_version=[''],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['cnn_mdn_jl'],
-        model_version=['temp'],
+        model_version=['A3_2025'],
         device='cuda'
     )
 
