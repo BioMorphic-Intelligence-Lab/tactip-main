@@ -19,7 +19,7 @@ class RTDEClient:
     class RTDESyncFailedToStart(RuntimeError):
         pass
     
-    def __init__(self, ip='164.11.72.164'):
+    def __init__(self, ip='192.168.56.101'):  # 164.11.72.164
         self.set_units('millimeters', 'degrees')
         self.connect(ip, port=30004)
 
@@ -454,8 +454,20 @@ class RTDEClient:
         """
         self._state = self._con.receive()
         force_torque = np.array(self._state.actual_TCP_force, dtype=np.float64)
-        return [1,1,1,1,1,1]
+        #return [1,1,1,1,1,1]
         return force_torque
+    
+    def zero_ft_sensor(self):
+        """Sends command 14 to zero the force/torque sensor.
+        """
+        # Set command registry to 14 
+        self._command.input_int_register_0 = 14
+        
+        # Send the command package
+        self._con.send(self._command)
+        
+        # Block until the robot confirms completion
+        self._wait_for_command_complete()
 
     def get_info(self):
         """Returns a unique robot identifier string.

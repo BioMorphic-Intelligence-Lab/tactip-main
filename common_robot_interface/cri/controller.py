@@ -199,7 +199,12 @@ class RobotController(ABC):
         """Releases any resources held by the controller (e.g., sockets).
         """
         pass
-
+    
+    @abstractmethod
+    def zero_ft_sensor(self):
+        """Resets the F/T sensor readings to zero.
+        """
+        pass
 
 from cri.abb.abb_controller import ABBController
 from cri.dummy.dummy_controller import DummyController

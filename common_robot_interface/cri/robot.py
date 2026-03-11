@@ -300,6 +300,12 @@ class Robot(ABC):
         """
         pass
 
+    @abstractmethod
+    def zero_ft_sensor(self):
+        """Resets the F/T sensor readings to zero.
+        """
+        pass
+
 
 class SyncRobot(Robot):
     """Synchronous robot class provides synchronous (blocking) movement
@@ -506,7 +512,12 @@ class SyncRobot(Robot):
     def close(self):
         """Releases any resources held by the robot (e.g., sockets).
         """
-        self.controller.close()      
+        self.controller.close()
+
+    def zero_ft_sensor(self):
+        """Resets the F/T sensor readings to zero.
+        """
+        self.controller.zero_ft_sensor()      
 
 
 class AsyncRobot(Robot):
@@ -695,3 +706,6 @@ class AsyncRobot(Robot):
         """Releases any resources held by the robot (e.g., sockets).
         """
         self.sync_robot.close()
+
+    def zero_ft_sensor(self):
+        self.sync_robot.zero_ft_sensor()

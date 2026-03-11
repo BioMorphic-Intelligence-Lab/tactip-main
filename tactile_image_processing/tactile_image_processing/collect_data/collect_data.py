@@ -66,6 +66,12 @@ def collect_data(
         # move to above new pose (avoid changing pose in contact with object)
         robot.move_linear(pose + shear - clearance)
 
+        # zero FT sensor in mid-air
+        print("Zeroing FT sensor in mid-air...")
+        time.sleep(1.0)         # Wait for vibrations to settle
+        robot.zero_ft_sensor()  # Send command 14
+        time.sleep(0.2)         # Short pause for the zeroing to register
+
         # move down to offset pose
         robot.move_linear(pose + shear)
 
@@ -76,9 +82,16 @@ def collect_data(
         image_outfile = os.path.join(image_dir, image_name)
         sensor.process(image_outfile)
 
-        # returns [Fx, Fy, Fz, Tx, Ty, Tz]
-        force_torque = robot.get_tcp_force
-        print(" Force/Torque: ", force_torque)
+        # force/torque reading - average multiple samples to reduce noise
+        num_samples = 30
+        samples = []
+        
+        for _ in range(num_samples):
+            samples.append(robot.get_tcp_force)
+            
+        force_torque = np.mean(np.array(samples), axis=0)
+        
+        print(f" Averaged Force/Torque ({num_samples} samples): ", force_torque)
 
         for j, col in enumerate(FT_LABEL_NAMES):
             targets_df.at[i, col] = force_torque[j]

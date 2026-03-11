@@ -70,8 +70,21 @@ def process_image_data(path, dir_names, image_params={}):
 
 
 def combine_bbox(image_params_1, image_params_2):
-    b_1 = image_params_1.get('bbox', [0, 0, 0, 0])
-    b_2 = image_params_2.get('bbox', [0, 0, 0, 0])
+    b_1 = image_params_1.get('bbox')
+    b_2 = image_params_2.get('bbox')
+
+    # if both None -> no crop
+    if b_1 is None and b_2 is None:
+        return None
+
+    # if only one exists
+    if b_1 is None:
+        return b_2
+    if b_2 is None:
+        return b_1
+
+    #b_1 = image_params_1.get('bbox', [0, 0, 0, 0])
+    #b_2 = image_params_2.get('bbox', [0, 0, 0, 0])
     return [b_1[0]+b_2[0], b_1[1]+b_2[1], b_1[0]+b_2[2], b_1[1]+b_2[3]]
 
 

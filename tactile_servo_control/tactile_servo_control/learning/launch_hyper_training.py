@@ -234,9 +234,9 @@ def launch(args, space, max_evals=20, n_startup_jobs=10):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='sim',
+        robot='ur',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_9d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
@@ -245,10 +245,19 @@ if __name__ == "__main__":
     )
 
     space = {
-        "target_weights_1": hp.uniform(label="target_weights_1", low=0.5, high=1.5),
+        "target_weights_0": hp.uniform(label="target_weights_0", low=0.5, high=1.5),
+        "target_weights_1": hp.uniform(label="target_weights_1", low=0.5, high=1.5), # add other weights
+        "target_weights_2": hp.uniform(label="target_weights_2", low=0.5, high=1.5),
+        "target_weights_3": hp.uniform(label="target_weights_3", low=0.5, high=1.5),
+        "target_weights_4": hp.uniform(label="target_weights_4", low=0.5, high=1.5),
+        "target_weights_5": hp.uniform(label="target_weights_5", low=0.5, high=1.5),
+        
         "activation": hp.choice(label="activation", options=('relu', 'elu')),
-        "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)),
-        "dropout": hp.uniform(label="dropout", low=0, high=0.5),
+        "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)), # add fc_layers , conv_kernel_size?
+        "dropout": hp.uniform(label="dropout", low=0, high=0.5), 
+        "fc_layers": hp.choice(label="fc_layers", options=([512]*2, [1024]*2)),
     }
 
-    launch(args, space, max_evals=20, n_startup_jobs=10)
+    #launch(args, space, max_evals=20, n_startup_jobs=10) #100, 20
+    launch(args, space, max_evals=50, n_startup_jobs=10)
+
