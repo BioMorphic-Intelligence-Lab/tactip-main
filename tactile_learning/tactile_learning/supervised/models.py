@@ -22,6 +22,7 @@ def create_model(
     display_model=True,
     device='cpu'
 ):
+    print('Creating model: %s' % (model_params['model_type'],))
 
     if 'mdn_kwargs' in model_params:
         model_out_dim = model_params['mdn_kwargs']['model_out_dim']
@@ -71,7 +72,8 @@ def create_model(
             **model_params['model_kwargs']
         ).to(device)
 
-    elif model_params['model_type'] in ['cnn_mdn_jl', 'cnn_mdn_jl_pretrain']:
+    elif model_params['model_type'] in ['cnn_mdn_jl', 'simple_cnn_mdn_jl', 'cnn_mdn_jl_pretrain']:
+        print('Creating MDN_JL model')
         model = MDN_JL(
             in_dim=in_dim,
             in_channels=in_channels,
@@ -160,7 +162,6 @@ class FCN(nn.Module):
     def forward(self, x):
         x = x.reshape(x.shape[0], -1)
         return self.fc(x)
-
 
 class CNN(nn.Module):
     def __init__(
@@ -518,15 +519,14 @@ class MDN_JL(nn.Module):
         in_dim,
         in_channels,
         out_dim,
-        conv_filters,
+        conv_layers,
         conv_kernel_sizes,
         conv_padding,
-        conv_batch_norm,
-        conv_activation,
+        apply_batchnorm,
         conv_pool_size,
-        fc_units,
-        fc_activation,
-        fc_dropout,
+        fc_layers,
+        activation,
+        dropout,
         mix_components,
         pi_dropout,
         mu_dropout,
@@ -547,17 +547,17 @@ class MDN_JL(nn.Module):
 
         # convolutional base
         conv_modules = []
-        for i in range(len(conv_filters)):
+        for i in range(len(conv_layers)):
             conv_modules.append(
                 nn.Conv2d(
-                    in_channels=in_channels if i == 0 else conv_filters[i - 1],
-                    out_channels=conv_filters[i],
+                    in_channels=in_channels if i == 0 else conv_layers[i - 1],
+                    out_channels=conv_layers[i],
                     kernel_size=conv_kernel_sizes[i],
                     padding=conv_padding)
             )
-            if conv_batch_norm:
-                conv_modules.append(nn.BatchNorm2d(conv_filters[i]))
-            conv_modules.append(activ_modules[conv_activation]())
+            if apply_batchnorm:
+                conv_modules.append(nn.BatchNorm2d(conv_layers[i]))
+            conv_modules.append(activ_modules[activation]())
             conv_modules.append(nn.MaxPool2d(kernel_size=conv_pool_size, stride=conv_pool_size))
         self.conv_base = nn.Sequential(*conv_modules)
 
@@ -568,14 +568,14 @@ class MDN_JL(nn.Module):
 
         # shared fc layers
         fc_modules = []
-        for i in range(len(fc_units)):
-            if fc_dropout > 0:
-                fc_modules.append(nn.Dropout(fc_dropout))
-            fc_modules.append(nn.Linear(conv_base_outputs if i == 0 else fc_units[i - 1], fc_units[i]))
-            fc_modules.append(activ_modules[fc_activation]())
+        for i in range(len(fc_layers)):
+            if dropout > 0:
+                fc_modules.append(nn.Dropout(dropout))
+            fc_modules.append(nn.Linear(conv_base_outputs if i == 0 else fc_layers[i - 1], fc_layers[i]))
+            fc_modules.append(activ_modules[activation]())
         self.fc_hidden = nn.Sequential(*fc_modules)
 
-        fc_hidden_outputs = fc_units[-1] if len(fc_units) > 0 else conv_base_outputs
+        fc_hidden_outputs = fc_layers[-1] if len(fc_layers) > 0 else conv_base_outputs
 
         # mixture weights
         pi_modules = []

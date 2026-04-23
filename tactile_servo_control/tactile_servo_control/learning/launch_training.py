@@ -27,12 +27,26 @@ def launch(args):
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
         task_name = '_'.join(filter(None, [args.task, *args.task_version]))
 
+        # small hack to deal with pose and shear separation for surface task
+        # this way you can specify either surface_3d or surface_6d with only surface_3d data
+        if args.task == 'surface_6d':
+            task_for_dir_name = 'surface_9d'
+        elif args.task == 'surface_5d':
+            task_for_dir_name = 'surface_9d'
+            args.task = 'surface_5d'
+        elif args.task == 'surface_9d':
+            task_for_dir_name = 'surface_9d'
+            args.task = 'surface_3d'
+        else:
+            task_for_dir_name = args.task
+
+
         # data dirs - list of directories combined in generator
         train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.train_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.train_dirs
         ]
         val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, args.task, d) for d in args.val_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.val_dirs
         ]
 
         # setup save dir
@@ -58,6 +72,15 @@ def launch(args):
             csv_row_to_label,
             **image_params['image_processing']
         )
+
+        # give user feedback about loaded data
+        print(f"Loaded {len(train_generator)} training samples")
+        print(f"Loaded {len(val_generator)} validation samples")
+        print(f"Training for {learning_params['epochs']} epochs")
+        print(f"Batch size: {learning_params['batch_size']}")
+        print(f"Model: {args.model}")
+        print(f"Task: {args.task}")
+        print(f"Device: {args.device}")
 
         # create the label encoder/decoder and plotter
         label_encoder = LabelEncoder(label_params, args.device)
@@ -99,15 +122,14 @@ def launch(args):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='cr',
+        robot='ur',
         sensor='tactip',
-        tasks=['surface_3d'],
-        # task_version=['shear'],
+        tasks=['surface_6d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn_mdn_jl'],
-        model_version=['varysig'],
-        saved_model='simple_cnn_mdn_jl_unitsig',
+        model_version=['A3_2025'],
+        saved_model=None,
         device='cuda'
     )
 

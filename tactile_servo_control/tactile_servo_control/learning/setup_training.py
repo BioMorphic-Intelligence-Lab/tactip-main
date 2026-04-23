@@ -16,7 +16,7 @@ def setup_learning(save_dir=None):
     learning_params = {
         'seed': 42,
         'batch_size': 16,
-        'epochs': 50,
+        'epochs': 100,
         # 'lr': 1e-5,
         # 'lr_factor': 0.5,
         # 'lr_patience': 10,
@@ -72,6 +72,8 @@ def setup_model(model_type, save_dir=None):
     model_params = {
         'model_type': model_type
     }
+
+    print(model_params['model_type'])
 
     if 'simple_cnn' in model_params['model_type']:
         model_params['model_kwargs'] = {
@@ -149,12 +151,14 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
         'surface_3d':      ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
         'surface_3d_pose': ['pose_z', 'pose_Rx', 'pose_Ry'],
         'surface_3d_shear': ['shear_x', 'shear_y', 'shear_Rz'],
+        'surface_6d':      ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
     }
 
     target_weights_dict = {
         'surface_3d':      [1, 1, 1, 1, 1, 1],
         'surface_3d_pose': [1, 1, 1],
         'surface_3d_shear': [1, 1, 1],
+        'surface_6d':      [1, 1, 1, 1, 1, 1],
     }
 
     # get data limits from training data
