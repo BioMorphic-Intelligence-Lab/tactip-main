@@ -6,7 +6,7 @@ BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
-    "ur_tactip":    (0, 0, 440, 440), # Set resolution to final intended resolution
+    "ur_tactip":    (70, 0, 550, 480), # Set resolution to final intended resolution
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
@@ -31,8 +31,8 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
         'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
         'aerial-A3': (80, 15, 520, 455),
-        'aerial-A2': (80, 25, 520, 465),
-        'aerial-B2': (110, 25, 550, 465),
+        'aerial-A2': (0, 0, 640, 480),
+        'aerial-B2': (0, 0, 640, 480),
         'aerial-nobb': (0, 0, 640, 480)
     }
     sensor_type = sensor  # TODO: Fix hardcoded sensor type

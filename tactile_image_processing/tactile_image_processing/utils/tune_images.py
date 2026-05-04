@@ -8,7 +8,7 @@ from tactile_image_processing.image_transforms import process_image
 from tactile_image_processing.simple_sensors import RealSensor
 
 # Set to false for using camera feed. True for using a previously captured image (specify path below).
-use_captured_data = True
+use_captured_data = False
 captured_image_path = '/home/martijn/ats-meta/tactile_data_shear/data/ur_tactip/surface_9d/data/sensor_images/image_10.png'
 
 def setup_sensor(exp=-7):
