@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Optional, Tuple
 
 
 @dataclass
@@ -21,18 +21,18 @@ class WorkspaceLimits:
 @dataclass
 class SafetyConfig:
     workspace: WorkspaceLimits = field(default_factory=WorkspaceLimits)
-    max_linear_rate: float = 200.0   # mm/s
+    max_linear_rate: float = 210.0   # mm/s
     max_angular_rate: float = 30.0   # deg/s
     min_dt: float = 0.005            # s
 
 
 @dataclass
 class RobotConfig:
-    ip: str = "192.168.1.100"
+    ip: str = "172.17.0.2"
     tcp: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    work_frame: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    home_joint_angles: Tuple[float, ...] = (0.0, -90.0, 0.0, -90.0, 0.0, 0.0)
-    linear_speed: float = 100.0      # mm/s
+    work_frame: Tuple[float, ...] = (400.0, -150.0, 500.0, 0.0, 90.0, 0.0)
+    home_joint_angles: Tuple[float, ...] = (0.0, -90.0, -123.0, 31.0, 90.0, 90.0)
+    linear_speed: float = 200.0      # mm/s
     angular_speed: float = 20.0      # deg/s
     linear_accel: float = 500.0      # mm/s²
     angular_accel: float = 50.0      # deg/s²
@@ -40,6 +40,25 @@ class RobotConfig:
 
 
 @dataclass
+class SinusoidalOverlay:
+    """Per-axis sinusoidal signal added on top of rotation channels."""
+    roll_amplitude: float = 0.0   # deg
+    roll_frequency: float = 0.1   # Hz
+    pitch_amplitude: float = 0.0  # deg
+    pitch_frequency: float = 0.1  # Hz
+    yaw_amplitude: float = 0.0    # deg
+    yaw_frequency: float = 0.1    # Hz
+
+
+@dataclass
+class AugmentationConfig:
+    linear_scale: float = 1000.0          # unit conversion applied to x/y/z (default: m → mm)
+    angular_scale: float = 1.0            # multiplicative scale applied to roll/pitch/yaw
+    overlay: Optional[SinusoidalOverlay] = None
+
+
+@dataclass
 class EmulatorConfig:
     robot: RobotConfig = field(default_factory=RobotConfig)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
+    augmentation: AugmentationConfig = field(default_factory=AugmentationConfig)

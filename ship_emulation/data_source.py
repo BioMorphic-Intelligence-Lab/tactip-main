@@ -1,9 +1,13 @@
 import csv
-import json
-import socket
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import Iterator, List
+
+import numpy as np
+from scipy.interpolate import UnivariateSpline
+
+from ship_emulation.config import AugmentationConfig
 
 
 @dataclass(frozen=True)
@@ -61,45 +65,92 @@ class CsvFileSource(DataSource):
         pass
 
 
-class UdpSource(DataSource):
-    def __init__(
-        self,
-        host: str = "",
-        port: int = 5005,
-        timeout: float = 5.0,
-        max_poses: Optional[int] = None,
-    ):
-        self._host = host
-        self._port = port
-        self._timeout = timeout
-        self._max_poses = max_poses
-        self._sock: Optional[socket.socket] = None
+class AugmentedSource(DataSource):
+    """Wraps any DataSource, applying per-channel scaling and an optional sinusoidal overlay."""
 
-    def _ensure_socket(self):
-        if self._sock is None:
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._sock.bind((self._host, self._port))
-            self._sock.settimeout(self._timeout)
+    def __init__(self, source: DataSource, config: AugmentationConfig):
+        self._source = source
+        self._config = config
 
     def poses(self) -> Iterator[ShipPose]:
-        self._ensure_socket()
-        count = 0
-        while self._max_poses is None or count < self._max_poses:
-            data, _ = self._sock.recvfrom(4096)
-            d = json.loads(data.decode())
+        cfg = self._config
+        for pose in self._source.poses():
+            roll = pose.roll * cfg.angular_scale
+            pitch = pose.pitch * cfg.angular_scale
+            yaw = pose.yaw * cfg.angular_scale
+            if cfg.overlay is not None:
+                ov = cfg.overlay
+                t = pose.timestamp
+                roll += ov.roll_amplitude * math.sin(2 * math.pi * ov.roll_frequency * t)
+                pitch += ov.pitch_amplitude * math.sin(2 * math.pi * ov.pitch_frequency * t)
+                yaw += ov.yaw_amplitude * math.sin(2 * math.pi * ov.yaw_frequency * t)
             yield ShipPose(
-                timestamp=float(d["timestamp"]),
-                x=float(d["x"]),
-                y=float(d["y"]),
-                z=float(d["z"]),
-                roll=float(d["roll"]),
-                pitch=float(d["pitch"]),
-                yaw=float(d["yaw"]),
+                timestamp=pose.timestamp,
+                x=pose.x * cfg.linear_scale,
+                y=pose.y * cfg.linear_scale,
+                z=pose.z * cfg.linear_scale,
+                roll=roll,
+                pitch=pitch,
+                yaw=yaw,
             )
-            count += 1
 
     def close(self):
-        if self._sock is not None:
-            self._sock.close()
-            self._sock = None
+        self._source.close()
+
+
+class SmoothedSource(DataSource):
+    """Wraps any DataSource, fitting a smoothing spline to each channel.
+
+    Buffers the full dataset upfront, then re-emits poses at the original
+    timestamps with spline-smoothed values.  The smoothing_factor s is passed
+    directly to scipy UnivariateSpline: s=0 interpolates exactly, larger
+    values smooth more aggressively.  A good starting point for mm-scale
+    ship motion data is s=1e4–1e6; tune until peak linear rate drops to a
+    robot-safe level.
+    """
+
+    def __init__(self, source: DataSource, s_linear: float, s_angular: float):
+        self._source = source
+        self._s_linear = s_linear
+        self._s_angular = s_angular
+
+    def poses(self) -> Iterator[ShipPose]:
+        all_poses: List[ShipPose] = list(self._source.poses())
+        if len(all_poses) < 5:
+            yield from all_poses
+            return
+
+        t = np.array([p.timestamp for p in all_poses])
+        linear_channels = dict(
+            x=np.array([p.x for p in all_poses]),
+            y=np.array([p.y for p in all_poses]),
+            z=np.array([p.z for p in all_poses]),
+        )
+        angular_channels = dict(
+            roll=np.array([p.roll for p in all_poses]),
+            pitch=np.array([p.pitch for p in all_poses]),
+            yaw=np.array([p.yaw for p in all_poses]),
+        )
+        smoothed = {
+            name: UnivariateSpline(t, values, s=self._s_linear)(t)
+            for name, values in linear_channels.items()
+        }
+        smoothed.update({
+            name: UnivariateSpline(t, values, s=self._s_angular)(t)
+            for name, values in angular_channels.items()
+        })
+
+        for i, pose in enumerate(all_poses):
+            yield ShipPose(
+                timestamp=pose.timestamp,
+                x=float(smoothed['x'][i]),
+                y=float(smoothed['y'][i]),
+                z=float(smoothed['z'][i]),
+                roll=float(smoothed['roll'][i]),
+                pitch=float(smoothed['pitch'][i]),
+                yaw=float(smoothed['yaw'][i]),
+            )
+
+    def close(self):
+        self._source.close()
+

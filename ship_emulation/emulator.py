@@ -36,8 +36,9 @@ class ShipEmulator:
 
         def _handle_signal(sig, frame):
             nonlocal stop_requested
-            log.info("Signal %s received — stopping after current pose", sig)
+            log.info("Signal %s received — stopping", sig)
             stop_requested = True
+            raise KeyboardInterrupt
 
         original_sigint = signal.getsignal(signal.SIGINT)
         original_sigterm = signal.getsignal(signal.SIGTERM)
@@ -46,13 +47,30 @@ class ShipEmulator:
 
         try:
             self._interface.move_home()
+            self._interface.wait_until_stopped()
 
-            wall_origin = None
-            sim_origin = None
-            pose_count = 0
+            pose_iter = iter(self._source.poses())
+            first_pose = next(pose_iter, None)
+            if first_pose is None:
+                return
+
+            try:
+                self._safety.check(first_pose)
+            except SafetyViolation as e:
+                log.error("Safety violation on first pose: %s", e)
+                self._interface.emergency_stop()
+                raise EmulationError(f"Safety violation: {e}") from e
+
+            log.info("Moving to start pose before beginning playback")
+            self._interface.move_to(first_pose.as_robot_pose())
+            self._interface.wait_for_motion()
+
+            wall_origin = time.monotonic()
+            sim_origin = first_pose.timestamp
+            pose_count = 1
             late_count = 0
 
-            for pose in self._source.poses():
+            for pose in pose_iter:
                 if stop_requested:
                     break
 
@@ -63,15 +81,10 @@ class ShipEmulator:
                     self._interface.emergency_stop()
                     raise EmulationError(f"Safety violation: {e}") from e
 
-                now = time.monotonic()
-                if wall_origin is None:
-                    wall_origin = now
-                    sim_origin = pose.timestamp
-                else:
-                    target_wall = wall_origin + (pose.timestamp - sim_origin)
-                    sleep_s = target_wall - time.monotonic()
-                    if sleep_s > _SLEEP_MIN:
-                        time.sleep(sleep_s)
+                target_wall = wall_origin + (pose.timestamp - sim_origin)
+                sleep_s = target_wall - time.monotonic()
+                if sleep_s > _SLEEP_MIN:
+                    time.sleep(sleep_s)
 
                 if not self._interface.is_motion_done():
                     late_count += 1
@@ -88,6 +101,14 @@ class ShipEmulator:
 
             self._interface.wait_for_motion()
             self._interface.move_home()
+
+        except KeyboardInterrupt:
+            log.info("Interrupted — closing connection")
+            try:
+                self._interface.close()
+            except Exception:
+                pass
+            return
 
         finally:
             signal.signal(signal.SIGINT, original_sigint)

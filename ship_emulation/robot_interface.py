@@ -1,4 +1,6 @@
 import logging
+import math
+import time
 from typing import Tuple
 
 from cri.robot import SyncRobot, AsyncRobot
@@ -61,6 +63,7 @@ class UR16Interface:
         if self._motion_pending:
             self._robot.async_result()
             self._motion_pending = False
+        log.debug("move_to: x=%.1f y=%.1f z=%.1f roll=%.3f pitch=%.3f yaw=%.3f", *pose)
         self._robot.async_move_linear(pose)
         self._motion_pending = True
 
@@ -68,6 +71,16 @@ class UR16Interface:
         if self._motion_pending:
             self._robot.async_result()
             self._motion_pending = False
+
+    def wait_until_stopped(self, threshold_mm_s: float = 2.0, timeout_s: float = 10.0) -> None:
+        """Poll actual TCP speed until the robot is physically at rest."""
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            vel = self._controller.linear_velocity
+            if math.sqrt(vel[0]**2 + vel[1]**2 + vel[2]**2) < threshold_mm_s:
+                return
+            time.sleep(0.05)
+        log.warning("wait_until_stopped: robot did not stop within %.1f s", timeout_s)
 
     def is_motion_done(self) -> bool:
         if not self._motion_pending:
