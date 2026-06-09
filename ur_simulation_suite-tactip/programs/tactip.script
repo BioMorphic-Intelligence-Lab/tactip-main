@@ -1,13 +1,8 @@
 def tactip():
   global _hidden_verificationVariable=0
-  set_tool_communication(False, 115200, 0, 1, 1.5, 3.5)
-  set_tool_output_mode(0)
-  set_tool_digital_output_mode(0, 1)
-  set_tool_digital_output_mode(1, 1)
-  set_tool_voltage(0)
-  set_tcp(p[0.0,0.0,0.0,0.0,0.0,0.0])
+  set_tcp(p[0.0,0.0,0.032,0.0,0.0,0.0])
+  set_safety_mode_transition_hardness(1)
   set_gravity([0.0, 0.0, 9.82])
-  motion_version_set(1)
   set_standard_analog_input_domain(0, 1)
   set_standard_analog_input_domain(1, 1)
   set_tool_analog_input_domain(0, 1)
@@ -15,17 +10,22 @@ def tactip():
   set_analog_outputdomain(0, 0)
   set_analog_outputdomain(1, 0)
   set_input_actions_to_default()
+  set_target_payload(1.000000, [0.000000, 0.000000, 0.000000], [0.001539, 0.001539, 0.001539, 0.000000, 0.000000, 0.000000])
+  motion_version_set(1)
+  set_tool_communication(False, 115200, 0, 1, 1.5, 3.5)
+  set_tool_output_mode(0)
+  set_tool_digital_output_mode(0, 1)
+  set_tool_digital_output_mode(1, 1)
+  set_tool_voltage(0)
   tool_wrench_limit_disable()
-  set_safety_mode_transition_hardness(1)
-  set_target_payload(0.000000, [0.000000, 0.000000, 0.000000], [0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000])
-  step_count_b6bec140_245f_490e_b0f8_0244bfb7b12d = 0.0
-  thread Step_Counter_Thread_7257d024_e752_46db_b099_f54761bdbcb7():
+  step_count_d2a8f6bd_1da1_4858_99af_80caf6287013 = 0.0
+  thread Step_Counter_Thread_8bc07c26_7373_4d44_ad43_08f04a6351ee():
     while (True):
-      step_count_b6bec140_245f_490e_b0f8_0244bfb7b12d = step_count_b6bec140_245f_490e_b0f8_0244bfb7b12d + 1.0
+      step_count_d2a8f6bd_1da1_4858_99af_80caf6287013 = step_count_d2a8f6bd_1da1_4858_99af_80caf6287013 + 1.0
       sync()
     end
   end
-  run Step_Counter_Thread_7257d024_e752_46db_b099_f54761bdbcb7()
+  run Step_Counter_Thread_8bc07c26_7373_4d44_ad43_08f04a6351ee()
   while (True):
     $ 2 "Robot Program"
     $ 3 "Script: rtde_server.script"

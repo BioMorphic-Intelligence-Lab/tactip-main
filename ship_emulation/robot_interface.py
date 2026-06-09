@@ -56,8 +56,33 @@ class UR16Interface:
         if self._motion_pending:
             self._robot.async_result()
             self._motion_pending = False
-        self._robot.move_joints(self._config.home_joint_angles)
+        self._robot.move_linear(self._config.home_pose)
         log.info("At home position")
+
+    def move_linear_at(
+        self,
+        pose: Tuple[float, ...],
+        linear_speed: float,
+        angular_speed: float,
+    ) -> None:
+        """Blocking linear move at explicitly specified speeds.
+
+        Temporarily overrides the robot's configured speeds for this move,
+        then restores them.  Use for slow positioning moves where the default
+        configured speed is too fast.
+        """
+        if self._motion_pending:
+            self._robot.async_result()
+            self._motion_pending = False
+        orig_linear  = self._robot.linear_speed
+        orig_angular = self._robot.angular_speed
+        self._robot.linear_speed  = linear_speed
+        self._robot.angular_speed = angular_speed
+        try:
+            self._robot.move_linear(pose)
+        finally:
+            self._robot.linear_speed  = orig_linear
+            self._robot.angular_speed = orig_angular
 
     def move_to(self, pose: Tuple[float, ...]):
         if self._motion_pending:

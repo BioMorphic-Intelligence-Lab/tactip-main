@@ -6,6 +6,7 @@ from typing import Iterator, List
 
 import numpy as np
 from scipy.interpolate import UnivariateSpline
+from scipy.spatial.transform import Rotation
 
 from ship_emulation.config import AugmentationConfig
 
@@ -25,6 +26,8 @@ class ShipPose:
 
 
 class DataSource(ABC):
+    name: str = ""  # optional label used by SequentialSource for transition logging
+
     def __enter__(self):
         return self
 
@@ -149,6 +152,40 @@ class SmoothedSource(DataSource):
                 roll=float(smoothed['roll'][i]),
                 pitch=float(smoothed['pitch'][i]),
                 yaw=float(smoothed['yaw'][i]),
+            )
+
+    def close(self):
+        self._source.close()
+
+
+class RigidBodyOffsetSource(DataSource):
+    """Wraps any DataSource, translating COG motion to a fixed body-frame offset point.
+
+    Given an offset (ox, oy, oz) in the body frame (same units as the incoming
+    pose data), computes the world-frame position of that point at each timestep:
+
+        p_point = p_cog + R(roll, pitch, yaw) @ [ox, oy, oz]
+
+    Orientation channels are unchanged — all points on a rigid body share the
+    same orientation.  Euler convention: intrinsic XYZ (roll→pitch→yaw).
+    """
+
+    def __init__(self, source: DataSource, ox: float, oy: float, oz: float):
+        self._source = source
+        self._offset = np.array([ox, oy, oz], dtype=float)
+
+    def poses(self) -> Iterator[ShipPose]:
+        for pose in self._source.poses():
+            R = Rotation.from_euler('xyz', [pose.roll, pose.pitch, pose.yaw], degrees=True).as_matrix()
+            delta = R @ self._offset
+            yield ShipPose(
+                timestamp=pose.timestamp,
+                x=pose.x + delta[0],
+                y=pose.y + delta[1],
+                z=pose.z + delta[2],
+                roll=pose.roll,
+                pitch=pose.pitch,
+                yaw=pose.yaw,
             )
 
     def close(self):

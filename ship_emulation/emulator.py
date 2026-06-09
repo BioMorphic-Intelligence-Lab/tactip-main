@@ -23,11 +23,17 @@ class ShipEmulator:
         interface: UR16Interface,
         safety: SafetyChecker,
         config: EmulatorConfig,
+        on_move=None,
+        home_at_start: bool = True,
+        home_at_end: bool = True,
     ):
         self._source = source
         self._interface = interface
         self._safety = safety
         self._config = config
+        self._on_move = on_move  # optional callable(ShipPose) called after each move_to
+        self._home_at_start = home_at_start
+        self._home_at_end = home_at_end
 
     def run(self):
         self._safety.reset()
@@ -46,8 +52,9 @@ class ShipEmulator:
         signal.signal(signal.SIGTERM, _handle_signal)
 
         try:
-            self._interface.move_home()
-            self._interface.wait_until_stopped()
+            if self._home_at_start:
+                self._interface.move_home()
+                self._interface.wait_until_stopped()
 
             pose_iter = iter(self._source.poses())
             first_pose = next(pose_iter, None)
@@ -82,25 +89,30 @@ class ShipEmulator:
                     raise EmulationError(f"Safety violation: {e}") from e
 
                 target_wall = wall_origin + (pose.timestamp - sim_origin)
-                sleep_s = target_wall - time.monotonic()
+                now = time.monotonic()
+                sleep_s = target_wall - now
                 if sleep_s > _SLEEP_MIN:
                     time.sleep(sleep_s)
 
                 if not self._interface.is_motion_done():
                     late_count += 1
+                    lateness_ms = (time.monotonic() - target_wall) * 1000.0
+                    sim_t = pose.timestamp - sim_origin
                     log.warning(
-                        "Robot still moving for pose %d — waiting. "
-                        "Consider reducing max_linear_rate/max_angular_rate or "
-                        "increasing robot speed.",
-                        pose_count,
+                        "pose %d  sim_t=%.3fs  late=%.1fms  "
+                        "target=(x=%.2f y=%.2f z=%.2f roll=%.3f pitch=%.3f yaw=%.3f)",
+                        pose_count, sim_t, lateness_ms, *pose.as_robot_pose(),
                     )
                     self._interface.wait_for_motion()
 
                 self._interface.move_to(pose.as_robot_pose())
+                if self._on_move is not None:
+                    self._on_move(pose)
                 pose_count += 1
 
             self._interface.wait_for_motion()
-            self._interface.move_home()
+            if self._home_at_end:
+                self._interface.move_home()
 
         except KeyboardInterrupt:
             log.info("Interrupted — closing connection")
@@ -108,7 +120,7 @@ class ShipEmulator:
                 self._interface.close()
             except Exception:
                 pass
-            return
+            return False
 
         finally:
             signal.signal(signal.SIGINT, original_sigint)
@@ -119,3 +131,4 @@ class ShipEmulator:
             pose_count,
             late_count,
         )
+        return True

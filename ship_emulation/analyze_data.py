@@ -19,21 +19,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from scipy.interpolate import UnivariateSpline
+from scipy.spatial.transform import Rotation
 
 POSITION_COLS = ["linear_x", "linear_y", "linear_z"]
 ROTATION_COLS = ["rotation_x", "rotation_y", "rotation_z"]
 TIME_COL = "time"
 
-DEFAULT_CSV = Path(__file__).parent / "vessel_motion_clean.csv"
+DEFAULT_CSV = Path(__file__).parent / "2_vessel_motion_clean.csv"
 
 
 def load(path: Path):
-    import csv
-    rows = []
-    with open(path, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            rows.append({k: float(v) for k, v in row.items()})
+    import csv, io
+    with open(path, encoding="utf-8-sig") as f:
+        raw = f.read()
+    # Some exports wrap every row in double quotes; strip them so DictReader
+    # can parse the comma-separated columns normally.
+    lines = [line.strip().strip('"') for line in raw.splitlines() if line.strip()]
+    reader = csv.DictReader(io.StringIO("\n".join(lines)))
+    rows = [{k: float(v) for k, v in row.items()} for row in reader]
     return {col: np.array([r[col] for r in rows]) for col in rows[0]}
 
 
@@ -53,6 +56,18 @@ def apply_augmentation(data, linear_scale, angular_scale, overlay):
         for col, amp, freq in amps_freqs:
             if amp != 0.0:
                 data[col] = data[col] + amp * np.sin(2 * math.pi * freq * t)
+    return data
+
+
+def apply_rigid_body_offset(data, ox, oy, oz):
+    """Translate COG motion to a body-frame offset point (intrinsic XYZ Euler convention)."""
+    data = dict(data)
+    eulers = np.stack([data["rotation_x"], data["rotation_y"], data["rotation_z"]], axis=1)
+    R = Rotation.from_euler('xyz', eulers, degrees=True).as_matrix()  # (N, 3, 3)
+    delta = (R @ np.array([ox, oy, oz]))  # (N, 3)
+    data["linear_x"] = data["linear_x"] + delta[:, 0]
+    data["linear_y"] = data["linear_y"] + delta[:, 1]
+    data["linear_z"] = data["linear_z"] + delta[:, 2]
     return data
 
 
@@ -82,14 +97,15 @@ def apply_smoothing(data, s_linear, s_angular):
 
 
 def print_rate_stats(data, pos_unit, rot_unit):
-    _, linear_rate, angular_rate = compute_rates(data)
+    _, linear_rate, angular_rate, per_axis = compute_rates(data)
+    unit = f"{pos_unit}/s"
     print(f"\n{'Rate':<20} {'units':>8} {'min':>10} {'max':>10} {'mean':>10} {'std':>10}")
     print("-" * 74)
-    for label, values, unit in [
-        ("linear_rate",  linear_rate,  f"{pos_unit}/s"),
-        ("angular_rate", angular_rate, f"{rot_unit}/s"),
-    ]:
+    print(f"{'linear_rate (‖v‖)':<20} {unit:>8} {linear_rate.min():>10.4f} {linear_rate.max():>10.4f} {linear_rate.mean():>10.4f} {linear_rate.std():>10.4f}")
+    for col, values in per_axis.items():
+        label = f"  {col}"
         print(f"{label:<20} {unit:>8} {values.min():>10.4f} {values.max():>10.4f} {values.mean():>10.4f} {values.std():>10.4f}")
+    print(f"{'angular_rate (max|ω|)':<20} {f'{rot_unit}/s':>8} {angular_rate.min():>10.4f} {angular_rate.max():>10.4f} {angular_rate.mean():>10.4f} {angular_rate.std():>10.4f}")
 
 
 def compute_rates(data):
@@ -99,12 +115,13 @@ def compute_rates(data):
     rot = np.stack([data[c] for c in ROTATION_COLS], axis=1)
     linear_rate = np.linalg.norm(np.diff(pos, axis=0), axis=1) / dt
     angular_rate = np.max(np.abs(np.diff(rot, axis=0)), axis=1) / dt
-    return t[1:], linear_rate, angular_rate
+    per_axis_linear = {col: np.diff(data[col]) / dt for col in POSITION_COLS}
+    return t[1:], linear_rate, angular_rate, per_axis_linear
 
 
 def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=None):
     t = data[TIME_COL]
-    t_rate, linear_rate, angular_rate = compute_rates(data)
+    t_rate, linear_rate, angular_rate, _ = compute_rates(data)
 
     title = "Vessel Motion Inspection"
     if title_suffix:
@@ -171,7 +188,7 @@ def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=N
     p95 = np.percentile(linear_rate, 95)
     ax_lr.axhline(p95, color="red", linestyle="--", linewidth=0.8, label=f"p95={p95:.1f}")
     if smoothed_data:
-        _, s_linear_rate, _ = compute_rates(smoothed_data)
+        _, s_linear_rate, _, _ = compute_rates(smoothed_data)
         ax_lr.plot(t_rate, s_linear_rate, linewidth=1.2, color="steelblue", label="smoothed")
         s_p95 = np.percentile(s_linear_rate, 95)
         ax_lr.axhline(s_p95, color="navy", linestyle="--", linewidth=0.8, label=f"smoothed p95={s_p95:.1f}")
@@ -186,7 +203,7 @@ def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=N
     p95 = np.percentile(angular_rate, 95)
     ax_ar.axhline(p95, color="red", linestyle="--", linewidth=0.8, label=f"p95={p95:.1f}")
     if smoothed_data:
-        _, _, s_angular_rate = compute_rates(smoothed_data)
+        _, _, s_angular_rate, _ = compute_rates(smoothed_data)
         ax_ar.plot(t_rate, s_angular_rate, linewidth=1.2, color="darkorange", label="smoothed")
         s_p95 = np.percentile(s_angular_rate, 95)
         ax_ar.axhline(s_p95, color="saddlebrown", linestyle="--", linewidth=0.8, label=f"smoothed p95={s_p95:.1f}")
@@ -197,6 +214,105 @@ def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=N
         print(f"\nPlot saved to {save_path}")
     else:
         plt.show()
+
+
+def compute_psd(data):
+    """Welch power spectral density for all 6 DOF channels. Returns ({col: (freqs, psd)}, fs)."""
+    from scipy.signal import welch as scipy_welch
+    t = data[TIME_COL]
+    dt = np.median(np.diff(t))
+    fs = 1.0 / dt
+    results = {}
+    for col in POSITION_COLS + ROTATION_COLS:
+        signal = data[col] - data[col].mean()
+        freqs, psd = scipy_welch(signal, fs=fs, nperseg=min(4096, len(signal) // 4))
+        results[col] = (freqs, psd)
+    return results, fs
+
+
+def print_psd_stats(psd_results, fs, thresholds=(0.05, 0.1, 0.2, 0.5, 1.0)):
+    nyquist = fs / 2.0
+    thresholds = [thr for thr in thresholds if thr < nyquist]
+
+    print(f"\n--- Fourier / PSD Analysis ---")
+    print(f"Sampling rate: {fs:.3f} Hz  |  Nyquist: {nyquist:.3f} Hz")
+    print(f"\nFraction of power ABOVE threshold (high-frequency content indicator):")
+    header = f"{'Channel':<14} {'Dom. freq (Hz)':>16} {'Period (s)':>12}"
+    for thr in thresholds:
+        header += f"  {f'>{thr:.2f}Hz':>9}"
+    print(header)
+    print("-" * (44 + 11 * len(thresholds)))
+
+    for col in POSITION_COLS + ROTATION_COLS:
+        freqs, psd = psd_results[col]
+        total = psd.sum()
+        if total == 0:
+            print(f"{col:<14}  (all zeros — skip)")
+            continue
+        idx = np.argmax(psd[1:]) + 1  # skip DC
+        dom_freq = freqs[idx]
+        dom_period = 1.0 / dom_freq if dom_freq > 0 else float("inf")
+        line = f"{col:<14} {dom_freq:>16.4f} {dom_period:>12.2f}"
+        for thr in thresholds:
+            pct = 100.0 * psd[freqs >= thr].sum() / total
+            line += f"  {pct:>8.1f}%"
+        print(line)
+
+    # Recommendation based on 0.5 Hz cutoff (UR arm practical tracking limit)
+    print()
+    noisy = []
+    for col in POSITION_COLS + ROTATION_COLS:
+        freqs, psd = psd_results[col]
+        total = psd.sum()
+        if total == 0:
+            continue
+        pct = 100.0 * psd[freqs >= 0.5].sum() / total
+        if pct > 5.0:
+            noisy.append((col, pct))
+
+    if noisy:
+        print("Channels with >5% power above 0.5 Hz:")
+        for col, pct in noisy:
+            print(f"  {col}: {pct:.1f}%")
+        print("→ Low-pass filter recommended before robot arm tracking.")
+    else:
+        print("All channels have <5% power above 0.5 Hz.")
+        print("→ Low-pass filter likely not required for robot arm tracking.")
+
+
+def plot_psd(psd_results, fs, lpf_cutoff=None, save_path=None):
+    """Plot Welch PSD (log-Y) for all 6 DOF channels in a 2×3 grid."""
+    fig, axes = plt.subplots(2, 3, figsize=(16, 8))
+    fig.suptitle("Power Spectral Density (Welch) — Vessel Motion", fontsize=14, fontweight="bold")
+
+    col_titles = {
+        "linear_x": "Surge (linear_x)", "linear_y": "Sway (linear_y)",
+        "linear_z": "Heave (linear_z)", "rotation_x": "Roll (rotation_x)",
+        "rotation_y": "Pitch (rotation_y)", "rotation_z": "Yaw (rotation_z)",
+    }
+    colors = {c: ("steelblue" if c in POSITION_COLS else "darkorange")
+              for c in POSITION_COLS + ROTATION_COLS}
+
+    for ax, col in zip(axes.flat, POSITION_COLS + ROTATION_COLS):
+        freqs, psd = psd_results[col]
+        mask = freqs > 0
+        ax.semilogy(freqs[mask], psd[mask], linewidth=0.8, color=colors[col])
+        if lpf_cutoff:
+            ax.axvline(lpf_cutoff, color="red", linestyle="--", linewidth=1.2,
+                       label=f"LPF {lpf_cutoff} Hz")
+            ax.legend(fontsize=8)
+        ax.set_title(col_titles.get(col, col), fontsize=10)
+        ax.set_xlabel("Frequency (Hz)")
+        ax.set_ylabel("PSD")
+        ax.grid(True, which="both", alpha=0.3)
+
+    fig.tight_layout()
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"PSD plot saved to {save_path}")
+    else:
+        plt.show()
+    plt.close(fig)
 
 
 def main(argv=None):
@@ -218,6 +334,18 @@ def main(argv=None):
                         help="Spline smoothing factor for linear channels in mm² (0 = disabled)")
     parser.add_argument("--smooth-angular", type=float, default=0.0, metavar="S",
                         help="Spline smoothing factor for angular channels in deg² (0 = disabled)")
+    parser.add_argument("--offset-x", type=float, default=0.0, metavar="M",
+                        help="Body-frame X offset from COG to target point (same units as pose data)")
+    parser.add_argument("--offset-y", type=float, default=0.0, metavar="M",
+                        help="Body-frame Y offset from COG to target point")
+    parser.add_argument("--offset-z", type=float, default=0.0, metavar="M",
+                        help="Body-frame Z offset from COG to target point")
+    parser.add_argument("--fourier", action="store_true",
+                        help="Run Fourier/PSD analysis and show power spectrum plots")
+    parser.add_argument("--lpf-cutoff", type=float, default=None, metavar="HZ",
+                        help="Mark a low-pass filter cutoff frequency on the PSD plot")
+    parser.add_argument("--save-fourier", type=Path, default=None, metavar="OUT.png",
+                        help="Save PSD plot to file instead of showing interactively")
     args = parser.parse_args(argv)
 
     if not args.csv.exists():
@@ -251,6 +379,12 @@ def main(argv=None):
     print(f"Loading {args.csv} ...")
     data = load(args.csv)
     data = apply_augmentation(data, args.linear_scale, args.angular_scale, overlay)
+
+    has_offset = any(v != 0.0 for v in (args.offset_x, args.offset_y, args.offset_z))
+    if has_offset:
+        data = apply_rigid_body_offset(data, args.offset_x, args.offset_y, args.offset_z)
+        title_parts.append(f"offset ({args.offset_x:.3g}, {args.offset_y:.3g}, {args.offset_z:.3g})")
+
     print_stats(data, pos_unit, rot_unit)
     print("\nRaw velocity stats:")
     print_rate_stats(data, pos_unit, rot_unit)
@@ -267,19 +401,30 @@ def main(argv=None):
     plot(data, pos_unit, rot_unit, title_suffix=", ".join(title_parts),
          smoothed_data=smoothed_data, save_path=args.save)
 
+    if args.fourier:
+        psd_results, fs = compute_psd(data)
+        print_psd_stats(psd_results, fs)
+        plot_psd(psd_results, fs, lpf_cutoff=args.lpf_cutoff, save_path=args.save_fourier)
+
 
 if __name__ == "__main__":
     main([
-        "--csv", "ship_emulation/vessel_motion_clean.csv",
-        "--linear-scale", "1000",
-        "--angular-scale", "1.0",
-        "--overlay-roll-amp", "0.0",
-        "--overlay-roll-freq", "0.1",
-        "--overlay-pitch-amp", "0.0",
-        "--overlay-pitch-freq", "0.1",
-        "--overlay-yaw-amp", "0.0",
-        "--overlay-yaw-freq", "0.1",
-        "--smooth-linear", "1e9",
+        "--csv", "ship_emulation/3_vessel_motion_clean.csv",
+        #"--linear-scale", "1.0", # meter to mm
+        #"--angular-scale", "1.0",
+        "--offset-x", "0.0", # forward of COG (bow direction, total length 103 m)
+        "--offset-y", "8.0", # side of ship (beam direction, total 16 m)
+        "--offset-z", "10.0", # vertical offset (total height of ship, 16 m, draft 6.7 m)
+        # "--overlay-roll-amp", "0.0",
+        # "--overlay-roll-freq", "0.0",
+        # "--overlay-pitch-amp", "0.0",
+        # "--overlay-pitch-freq", "0.0",
+        # "--overlay-yaw-amp", "0.0",
+        # "--overlay-yaw-freq", "0.0",
+        # "--smooth-linear", "0.0", # 0 removes smoothing
+        "--fourier",
+        # "--lpf-cutoff", "0.5",
         # "--smooth-angular", "1e2",
         # "--save", "vessel_motion.png",
+        # "--save-fourier", "vessel_motion_psd.png",
     ])

@@ -10,10 +10,10 @@ class WorkspaceLimits:
     y_max: float = 500.0
     z_min: float = -500.0
     z_max: float = 500.0
-    roll_min: float = -30.0
-    roll_max: float = 30.0
-    pitch_min: float = -30.0
-    pitch_max: float = 30.0
+    roll_min: float = -90.0
+    roll_max: float = 90.0
+    pitch_min: float = -90.0
+    pitch_max: float = 90.0
     yaw_min: float = -30.0
     yaw_max: float = 30.0
 
@@ -21,8 +21,8 @@ class WorkspaceLimits:
 @dataclass
 class SafetyConfig:
     workspace: WorkspaceLimits = field(default_factory=WorkspaceLimits)
-    max_linear_rate: float = 210.0   # mm/s
-    max_angular_rate: float = 30.0   # deg/s
+    max_linear_rate: float = 500.0   # mm/s
+    max_angular_rate: float = 50.0   # deg/s
     min_dt: float = 0.005            # s
 
 
@@ -31,8 +31,8 @@ class RobotConfig:
     ip: str = "172.17.0.2"
     tcp: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     work_frame: Tuple[float, ...] = (400.0, -150.0, 500.0, 0.0, 90.0, 0.0)
-    home_joint_angles: Tuple[float, ...] = (0.0, -90.0, -123.0, 31.0, 90.0, 90.0)
-    linear_speed: float = 200.0      # mm/s
+    home_pose: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  # work-frame (x y z roll pitch yaw) in mm/deg
+    linear_speed: float = 500.0      # mm/s
     angular_speed: float = 20.0      # deg/s
     linear_accel: float = 500.0      # mm/s²
     angular_accel: float = 50.0      # deg/s²
@@ -43,11 +43,11 @@ class RobotConfig:
 class SinusoidalOverlay:
     """Per-axis sinusoidal signal added on top of rotation channels."""
     roll_amplitude: float = 0.0   # deg
-    roll_frequency: float = 0.1   # Hz
+    roll_frequency: float = 0.0   # Hz
     pitch_amplitude: float = 0.0  # deg
-    pitch_frequency: float = 0.1  # Hz
+    pitch_frequency: float = 0.0  # Hz
     yaw_amplitude: float = 0.0    # deg
-    yaw_frequency: float = 0.1    # Hz
+    yaw_frequency: float = 0.0    # Hz
 
 
 @dataclass
