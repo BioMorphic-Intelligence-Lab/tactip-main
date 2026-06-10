@@ -29,6 +29,8 @@ Raw data is recorded at a measurement point near the vessel stern. `transform_to
 
 **Post-processing approach chosen:**
 - Rigid-body transform to CoG via `transform_to_com.py` (lever-arm correction)
+- Optional frame rotation (`FRAME_ROTATION`) to re-express vessel axes in the robot work frame
+- Optional amplitude scaling (`LINEAR_SCALE`, `ANGULAR_SCALE`) applied before the frame rotation
 - Mean-centering of linear channels (robot starts from work-frame origin)
 - Optional spline smoothing (`SmoothedSource`) on linear channels for velocity management
 - No spectral scaling or sinusoidal overlay planned — keeps OrcaFlex data as the sole physics source
@@ -55,7 +57,7 @@ time, linear_x, linear_y, linear_z, rotation_x, rotation_y, rotation_z
 CsvFileSource
     └─> AugmentedSource      (unit conversion, optional angular scale, optional sinusoidal overlay)
             └─> SmoothedSource (optional; spline smoothing per channel group)
-                    └─> ShipEmulator / SafetyChecker → UR16Interface
+                    └─> servo_run / SafetyChecker → UR16Interface
 ```
 
 ---
@@ -81,7 +83,7 @@ ship_emulation/
 │                               SmoothedSource, RigidBodyOffsetSource
 ├── safety.py                ✅ SafetyChecker (workspace bounds, rate-of-change, timestamp check)
 ├── robot_interface.py       ✅ UR16Interface wrapping AsyncRobot/RTDEController
-├── emulator.py              ✅ ShipEmulator main run-loop (on_move callback hook)
+├── emulator.py              ✅ ShipEmulator run-loop + servo_run() velocity streaming
 ├── motion_primitives.py     ✅ ChirpSource, TrapezoidalMoveSource, DwellSource,
 │                               FadeInSource, SequentialSource
 ├── ros_bridge.py            ✅ RosBridge — shared ROS 2 publisher for commanded + actual poses
@@ -90,12 +92,11 @@ ship_emulation/
 ├── run.py                   ✅ general-purpose CLI entry point
 ├── analyze_data.py          ✅ data inspection, augmentation preview, smoothing preview
 ├── transform_to_com.py      ✅ rigid-body transform from stern measurement point to vessel CoG
-├── 1_vessel_motion_clean.csv  (sea state 1 — raw stern data)
-├── 1_vessel_motion_com.csv    (sea state 1 — CoG-transformed, mean-centred)
-├── 2_vessel_motion_clean.csv  \
-├── 2a_vessel_motion_clean.csv  > sea state 2 variants (raw)
-├── 2b_vessel_motion_clean.csv /
-└── 3_vessel_motion_clean.csv  (sea state 3 — raw)
+├── 1_vessel_motion_clean.csv              (sea state 1 — raw stern data)
+├── 1_vessel_motion_com_1m.csv             (sea state 1 — CoG-transformed, 1 m offset, mean-centred)
+├── 1_vessel_motion_com_1m_translated.csv  (sea state 1 — CoG-transformed, frame-rotated to robot work frame)
+├── 3_vessel_motion_com_2m.csv             (sea state 3 — CoG-transformed, 2 m offset, mean-centred)
+└── 3_vessel_motion_com_2m_translated.csv  (sea state 3 — CoG-transformed, frame-rotated to robot work frame)
 ```
 
 All CSV files: 10 Hz sample rate, ~1 hour duration, columns: `time, x, y, z, roll, pitch, yaw` (positions in metres, angles in degrees).
@@ -127,6 +128,10 @@ Systematic DoF-by-DoF characterisation of the TacTip sensor response using **tra
 
 **Motion shape:** sweeps alternate between `SWEEP_START` and `SWEEP_END` for each axis. Both values are configured explicitly — they do not have to be symmetric about zero. An axis whose `SWEEP_START` is non-zero requires a slow approach from home; `depth-z` defaults to `SWEEP_START = 0` so no approach is needed.
 
+**Velocity streaming:** sweeps are executed via `speedL` (Cartesian velocity streaming, same as Phase 2) rather than `moveL`. Each 100 ms step becomes a velocity command that chains gaplessly into the next, so the commanded trapezoidal profile is tracked accurately regardless of speed. The `moveL`-based `ShipEmulator` is not used in Phase 1.
+
+**Choosing velocity levels:** for a given sweep range and `TRAP_ACCELERATION`, the maximum reachable peak velocity is `sqrt(a × d)` (triangular ceiling). All configured levels should be below this. For a ±400 mm range (d = 800 mm) at 400 mm/s²: ceiling = 566 mm/s.
+
 **Key configuration parameters** (edit at the top of `phase1.py`):
 
 | Parameter | Default | Notes |
@@ -134,13 +139,15 @@ Systematic DoF-by-DoF characterisation of the TacTip sensor response using **tra
 | `AXES` | `["roll","pitch","x","y","z"]` | DoF order; remove any entry to skip it |
 | `SWEEP_START` | −45 deg / −400 mm (x,y) / 0 mm (z) | Sweep start position per axis |
 | `SWEEP_END` | +45 deg / +400 mm (x,y) / +300 mm (z) | Sweep end position per axis |
-| `TRAP_ACCELERATION` | 45 deg/s² / 100 mm/s² (x,y) / 50 mm/s² (z) | Ramp distance = v²/(2a) |
-| `TRAP_VELOCITIES` | 3 levels, e.g. roll: 3→5→10 deg/s | List of dicts, one per level |
-| `TRAP_N_CYCLES` | 5 | One-way sweeps per DoF per level |
-| `APPROACH_VELOCITY` | 1 deg/s / 5 mm/s | Speed for slow positioning moves (approach and inter-level transitions) |
+| `TRAP_ACCELERATION` | 45 deg/s² / 600 mm/s² (x,y) / 30 mm/s² (z) | Ramp distance = v²/(2a); must fit within sweep range |
+| `TRAP_VELOCITIES` | 3 levels, e.g. roll: 3→5→10 deg/s | List of dicts, one per level; all must be below triangular ceiling |
+| `TRAP_N_CYCLES` | 2 | One-way sweeps per DoF per level |
+| `APPROACH_VELOCITY` | 3 deg/s / 10 mm/s | Speed for slow positioning moves (approach and inter-level transitions) |
+| `RETURN_LINEAR_SPEED` | 10 mm/s | Speed for the return-to-home move after the last level of each axis |
+| `RETURN_ANGULAR_SPEED` | 3 deg/s | Angular speed for the same return move |
 | `DWELL_SETTLE` | 5 s | Pause between consecutive sweeps |
-| `BLEND_RADIUS` | 3 mm | Move pipelining; set to 0 for strict stop-and-go |
-| `SAMPLE_RATE` | 10 Hz | Matches CRI/RTDE throughput limit |
+| `SAMPLE_RATE` | 10 Hz | Pose generation rate for motion primitives |
+| `SERVO_ACCEL` | 500 mm/s² | `speedL` acceleration; higher = tighter velocity tracking |
 
 Run:
 ```bash
@@ -166,12 +173,15 @@ Randomly samples a configurable window (default 3 minutes) from a vessel motion 
 
 | Parameter | Default | Notes |
 |---|---|---|
-| `CSV_FILE` | `1_vessel_motion_com.csv` | Path to vessel motion data (use CoG-transformed file) |
+| `CSV_FILE` | `1_vessel_motion_com_1m.csv` | Path to vessel motion data (use CoG-transformed file) |
 | `WINDOW_DURATION` | 180 s | Length of sampled window |
-| `RANDOM_SEED` | `None` | Set to an int for reproducibility |
+| `WINDOW_START` | `None` | Fix window start to a specific CSV timestamp (seconds); `None` = random |
+| `RANDOM_SEED` | `1` | Set to an int for reproducibility when `WINDOW_START` is `None`; `None` = non-reproducible |
+| `PLAYBACK_SPEED` | 1.0 | Speed multiplier; e.g. `0.1` plays at 10× slower for pre-flight singularity checks. Safety pre-check always runs at 1× rates. |
 | `FADE_IN_ENABLED` | `True` | Smooth onset ramp |
 | `FADE_IN_DURATION` | 10 s | Raised-cosine ramp duration |
-| `LINEAR_SCALE` | 1000.0 | m → mm conversion |
+| `LINEAR_SCALE` | 1000.0 | m → mm conversion applied to x/y/z |
+| `ANGULAR_SCALE` | 1.0 | Multiplicative scale applied to roll/pitch/yaw; reduce below 1.0 to limit rotational amplitude |
 | `SERVO_ACCEL` | 2000.0 mm/s² | Acceleration for `speedL`; higher = tighter velocity tracking |
 
 The selected window timestamps are logged at INFO level for post-processing cross-reference.
@@ -215,12 +225,12 @@ The UR robot driver topics (`/joint_states`, `/tf`, etc.) are already published 
 
 ```python
 from ship_emulation.ros_bridge import RosBridge
+from ship_emulation.emulator import servo_run
 
 bridge = RosBridge("my_experiment")
 bridge.start_feedback(lambda: interface.current_pose, rate_hz=50.0)
 bridge.set_context("some/label")          # optional; updates frame_id
-emulator = ShipEmulator(..., on_move=bridge)
-emulator.run()
+servo_run(poses, interface, safety, on_move=bridge, servo_accel=2000.0)
 bridge.close()
 ```
 
@@ -273,10 +283,11 @@ Five dataclasses:
 - `wait_for_motion()` — blocks until current async move done
 - `is_motion_done()` — non-blocking check
 - `emergency_stop()` — `controller.stop_linear_velocity(5000 mm/s²)` then closes; software backstop only — physical E-stop is always primary
-- `current_pose` / `current_joint_angles` — diagnostic properties; `current_pose` returns `(x, y, z, roll, pitch, yaw)` in mm/deg in the work frame
+- `current_pose` — returns `(x, y, z, roll, pitch, yaw)` in mm/deg in the work frame; `None` if not connected
+- `current_joint_angles` — returns a 6-element sequence of joint angles in degrees; `None` if not connected. Used by `servo_run` for singularity detection.
 
 #### `emulator.py`
-- `ShipEmulator(source, interface, safety, config, on_move=None, home_at_start=True, home_at_end=True)` — optional `on_move` callable receives each `ShipPose` immediately after `move_to`. `home_at_start/end` flags control whether `move_home()` is called at the start and end of `run()`; set both to `False` in `phase1.py` sweep runs so the robot stays in position between emulator calls.
+- `ShipEmulator(source, interface, safety, config, on_move=None, home_at_start=True, home_at_end=True)` — optional `on_move` callable receives each `ShipPose` immediately after `move_to`. `home_at_start/end` flags control whether `move_home()` is called at the start and end of `run()`. Note: the phase scripts no longer use `ShipEmulator`; they call `servo_run()` directly.
 - `run()` sequence:
   1. Reset safety checker
   2. Register `SIGINT`/`SIGTERM` handlers (set flag **and** raise `KeyboardInterrupt` to unblock network calls)
@@ -289,7 +300,13 @@ Five dataclasses:
 - Returns `True` on normal completion, `False` if interrupted by Ctrl+C — callers raise `_Aborted` to unwind cleanly
 - Timing: `time.monotonic()`; sleeps < 5 ms are skipped
 - Logs total pose count and late-move count on completion
-- Note: `ShipEmulator` is used by Phase 1. Phase 2 uses `_servo_run()` (velocity streaming) instead.
+- Note: `ShipEmulator` is no longer used by the phase scripts. Both Phase 1 and Phase 2 use `servo_run()` (velocity streaming) for all trajectory execution.
+
+`servo_run(poses, interface, safety, on_move, servo_accel, speed_factor=1.0)` — module-level function for streaming a pre-loaded pose list via `speedL`. Resets the safety checker, pre-checks the full trajectory at original (1×) rates, moves to the first pose at 100 mm/s / 5 deg/s, then streams finite-difference Cartesian velocities as back-to-back `speedL` segments. `speed_factor < 1` slows playback proportionally (velocity × factor, segment duration ÷ factor) while the safety check remains conservative. Returns `True` on clean completion, `False` on Ctrl+C, raises `EmulationError` on safety violation.
+
+During streaming, `servo_run` emits two categories of diagnostic output:
+- **Singularity warnings** (logged immediately): if any joint moves more than 25° in a single segment, a `WARNING` is logged naming the joint index and the delta magnitude. A wrist flip near a singularity typically shows 90–180°.
+- **Progress feedback** (every 5 s): `INFO` log line with elapsed time, progress %, ETA, and current TCP pose as `x/y/z mm  roll/pitch/yaw°`.
 
 #### `motion_primitives.py`
 Generates synthetic motion trajectories as `DataSource` implementations, all on a single axis with other axes held at zero. Used by `phase1.py`; composable for future sequences.
@@ -300,14 +317,14 @@ Generates synthetic motion trajectories as `DataSource` implementations, all on 
 - `FadeInSource` — wraps any `DataSource`; scales deviations from the first pose by a raised-cosine ramp over `duration` seconds. Set `enabled=False` to bypass. Used in Phase 2 to avoid velocity step at contact.
 - `SequentialSource` — concatenates multiple `DataSource` instances, stitching timestamps seamlessly. Logs a transition message at INFO level when each labelled source starts (set `source.name` to enable).
 
-All primitives are composable and pass through the existing `ShipEmulator` + `SafetyChecker` stack unchanged.
+All primitives are composable with `servo_run` — materialise them with `list(source.poses())` then pass the list directly.
 
 #### `ros_bridge.py`
-Shared ROS 2 publisher for commanded and actual robot poses. Designed to work with any `ShipEmulator`-based script without restructuring it as a ROS 2 node — rclpy spins in a daemon thread, leaving the main process as a plain Python script.
+Shared ROS 2 publisher for commanded and actual robot poses. Designed to work alongside any script using `servo_run` without restructuring it as a ROS 2 node — rclpy spins in a daemon thread, leaving the main process as a plain Python script.
 
 - `RosBridge(experiment)` — initialises rclpy, creates a node named `<experiment>_ros_bridge`, and starts the spin thread. `experiment` prefixes the `frame_id` on all published messages.
 - `set_context(str)` — appends a sub-label to `frame_id` (e.g. `"level_2/shear-x"`); call before each axis or trial run to make poses filterable in the bag.
-- `__call__(pose)` — publishes to `/robot/cmd_pose`; used as the `on_move` callback for `ShipEmulator`. Accepts `ShipPose` or a raw `(x, y, z, roll, pitch, yaw)` tuple.
+- `__call__(pose)` — publishes to `/robot/cmd_pose`; used as the `on_move` callback for `servo_run`. Accepts `ShipPose` or a raw `(x, y, z, roll, pitch, yaw)` tuple.
 - `start_feedback(get_pose, rate_hz=50)` — polls `get_pose()` in a daemon thread and publishes to `/robot/actual_pose`. Pass `lambda: interface.current_pose`.
 - `stop_feedback()` / `close()` — stop the feedback thread and shut down rclpy cleanly.
 - Orientation conversion: intrinsic-XYZ Euler degrees → quaternion, computed analytically (no extra dependencies beyond `math`).
@@ -333,9 +350,11 @@ Shared ROS 2 publisher for commanded and actual robot poses. Designed to work wi
 Transforms a vessel motion CSV recorded at a stern measurement point to equivalent motion at the ship's centre of mass (CoG), using a full rigid-body homogeneous transformation.
 
 - **Physics:** builds per-timestep homogeneous matrices `T = [R | d_A; 0 1]` from the CSV Euler angles and reference-point displacements, applies `d_CoG = T @ [r; 1] - r` where `r = −COM_OFFSET` is the body-frame vector from measurement point to CoG. Vectorised over all rows at once (no Python loop).
-- **Mean-centring:** subtracts the mean of each linear channel from the output so the CoG data is centred at the work-frame origin.
-- **Configuration:** `COM_OFFSET = (dx, dy, dz)` is the vector **from CoG to measurement point P** in the body frame (i.e. where P sits relative to the CoG), in the same units as the CSV (metres). `EULER_CONVENTION` (default `'xyz'`, intrinsic) and `ANGLES_IN_DEGREES` match the CSV convention.
-- Prints max position correction applied per axis so the lever-arm effect can be verified.
+- **Amplitude scaling:** `LINEAR_SCALE` and `ANGULAR_SCALE` are applied to the position and orientation channels respectively after the COM offset transform but **before** the frame rotation, so the frame change acts on already-scaled amplitudes. The COM offset itself is always specified in the original CSV units.
+- **Frame rotation:** `FRAME_ROTATION` (Euler angles, degrees) re-expresses the vessel-frame output in the robot work frame. Rotation matrices are rebuilt from the (possibly scaled) Euler angles before applying the similarity transform, so the frame change correctly reflects amplitude-adjusted orientations.
+- **Mean-centring:** subtracts the mean of each linear channel (after scaling and frame rotation) so the output is centred at the work-frame origin.
+- **Configuration:** `COM_OFFSET = (dx, dy, dz)` is the vector **from CoG to measurement point P** in the body frame, in the same units as the CSV (metres). `EULER_CONVENTION` (default `'xyz'`, intrinsic) and `ANGLES_IN_DEGREES` match the CSV convention. `LINEAR_SCALE` (default 1000.0, m → mm) and `ANGULAR_SCALE` (default 1.0) scale the output amplitudes.
+- Diagnostics print: max position lever-arm correction (original units), mean shift removed (scaled units), and applied scale factors.
 
 Run:
 ```bash
@@ -387,10 +406,10 @@ python -m ship_emulation.run
 ## Notes
 
 - **`work_frame`** in `RobotConfig` must match your physical setup — it defines the Cartesian origin for CSV pose offsets. CSV data contains relative displacements, so if `work_frame=(0,0,0,0,0,0)` the robot will try to reach absolute coordinates from its base frame, which are unreachable.
-- **`home_pose`** in `RobotConfig` is a Cartesian pose in the work frame (default `(0,0,0,0,0,0)`). All motion sequences in `phase1.py` start from zero, so setting `home_pose = (0,0,0,0,0,0)` ensures the emulator's automatic "move to first pose" step is always a no-op. If you need a raised safe position between axes, set `home_pose` accordingly and adjust `SWEEP_START` / `SWEEP_END` to use the same reference frame.
+- **`home_pose`** in `RobotConfig` is a Cartesian pose in the work frame (default `(0,0,0,0,0,0)`). All motion sequences in `phase1.py` start from zero, so `servo_run`'s initial "move to first pose" is always a no-op. If you need a raised safe position between axes, set `home_pose` accordingly and adjust `SWEEP_START` / `SWEEP_END` to use the same reference frame.
 - **Physical E-stop must always be within operator reach when the robot is powered.**
-- **Phase 1 late moves:** `ShipEmulator` uses `moveL`, which must decelerate to a full stop at each waypoint. For Phase 1 trapezoidal profiles this is fine — the profiles are slow and dwell at endpoints. If late-move warnings appear, reduce `TRAP_VELOCITIES` or increase `DWELL_SETTLE`. The emulator skips stale poses to catch up rather than queuing them, so lateness does not snowball; one warning is logged per catch-up event.
-- **Phase 2 velocity streaming:** `speedL` (CRI command 11) runs each segment on a URScript background thread and signals completion immediately. The next call joins the thread first, giving gapless back-to-back execution. Position drifts slightly over a long run (velocity-control error), but this is acceptable for sensor characterisation where the goal is realistic forces and accelerations, not absolute position accuracy.
-- **`SERVO_ACCEL`** controls how quickly the robot responds to velocity changes between consecutive `speedL` segments. 2000 mm/s² works well for typical ship-motion rates; lower values smooth out rapid velocity changes at the cost of tracking lag.
-- **`blend_radius`:** relevant for Phase 1 only. Setting a non-zero value (default 3 mm) allows the UR controller to pipeline consecutive `moveL` commands without a full stop at each waypoint. For stop-and-go characterisation set `blend_radius = 0`.
+- **Velocity streaming (`speedL`):** used by both Phase 1 and Phase 2. Each segment runs on a URScript background thread and signals completion immediately; the next call joins the thread first, giving gapless back-to-back execution. Position drifts slightly over a long run (velocity-control error), but this is acceptable for sensor characterisation where the goal is realistic forces and accelerations, not absolute position accuracy.
+- **`SERVO_ACCEL`** controls how quickly the robot responds to velocity changes between consecutive `speedL` segments. 2000 mm/s² works well for both sweep and ship-motion rates; lower values smooth out rapid velocity changes at the cost of tracking lag.
+- **Phase 1 velocity ceiling:** with `speedL` the robot accurately tracks the commanded trapezoidal profile. The only limit is that the ramp distance v²/(2a) must fit within the sweep range — if it exceeds half the range the profile is triangular and the peak is capped at `sqrt(a·d)`. Keep all configured velocity levels below this ceiling.
+- **Phase 2 slow-check runs:** set `PLAYBACK_SPEED` to a small value (e.g. 0.1) to traverse the full trajectory at low velocity before a full-speed run. The safety pre-check still runs at 1× rates, so workspace limits are enforced regardless of playback speed.
 - **Running the scripts:** the venv at `venv-tactip/` must be active. Scripts include a `sys.path` insert so they can be run directly or as modules from the repo root.

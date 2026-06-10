@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ship_emulation.config import EmulatorConfig
-from ship_emulation.emulator import EmulationError, ShipEmulator
+from ship_emulation.emulator import EmulationError, servo_run
 from ship_emulation.motion_primitives import (
     DwellSource,
     SequentialSource,
@@ -40,20 +40,21 @@ ROBOT_IP = "172.17.0.2"
 BLEND_RADIUS = 3.0  # mm
 
 # DoF order: Rx (roll), Ry (pitch), shear-x, shear-y, depth-z.  Remove any to skip.
-AXES = ["roll", "pitch", "x", "y", "z"]
+#AXES = ["roll", "pitch", "x", "y", "z"]
+AXES = ['y', 'z']
 
 # Sweep start and end positions per axis [mm for linear, deg for angular].
 # The robot alternates between SWEEP_START and SWEEP_END for TRAP_N_CYCLES sweeps.
 # An axis whose SWEEP_START is non-zero requires a slow approach from home.
 SWEEP_START = {
-    "roll":  -90.0,   # deg
+    "roll":  -45.0,   # deg
     "pitch": -45.0,   # deg
     "x":    -400.0,   # mm
     "y":    -400.0,   # mm
     "z":       0.0,   # mm
 }
 SWEEP_END = {
-    "roll":   0.0,   # deg
+    "roll":   45.0,   # deg
     "pitch":  45.0,   # deg
     "x":     400.0,   # mm
     "y":     400.0,   # mm
@@ -64,33 +65,43 @@ SWEEP_END = {
 TRAP_ACCELERATION = {
     "roll":  45.0,   # deg/s²
     "pitch": 45.0,
-    "x":     100.0,  # mm/s²
-    "y":     100.0,
-    "z":     50.0,
+    "x":     600.0,  # mm/s²
+    "y":     600.0,
+    "z":     30.0,
 }
 
 # Velocity levels — one entry per level, tested low → high.
 # Each level runs all DoFs before moving to the next.
 # Angular: deg/s, linear: mm/s.
 TRAP_VELOCITIES = [
-    {"roll": 3.0,  "pitch": 3.0,  "x":  300.0, "y":  300.0, "z":   150.0},
-    {"roll": 5.0,  "pitch": 5.0,  "x":  500.0, "y":  500.0, "z":   300.0},
-    {"roll": 10.0, "pitch": 10.0, "x": 1000.0, "y": 1000.0, "z":   500.0},
+    {"roll": 3.0,  "pitch": 3.0,  "x":  100.0, "y":  100.0, "z":    50.0},
+    {"roll": 5.0,  "pitch": 5.0,  "x":  300.0, "y":  300.0, "z":   150.0},
+    {"roll": 10.0, "pitch": 10.0, "x":  600.0, "y":  600.0, "z":   300.0},
 ]
 
-TRAP_N_CYCLES = 5   # one-way sweeps per DoF per level
+TRAP_N_CYCLES = 2   # one-way sweeps per DoF per level
 
 # Speed for the slow approach from home (0) to sweep start position (−A).
 # Applies to roll, pitch, x, y only. Keep well below lowest TRAP_VELOCITIES.
 APPROACH_VELOCITY = {
-    "roll":  1.0,   # deg/s
-    "pitch": 1.0,   # deg/s
-    "x":     5.0,   # mm/s
-    "y":     5.0,   # mm/s
+    "roll":  3.0,   # deg/s
+    "pitch": 3.0,   # deg/s
+    "x":     10.0,   # mm/s
+    "y":     10.0,   # mm/s
 }
+
+# Speed for the return-to-home move after the last level of each axis.
+# Faster than APPROACH_VELOCITY (no contact on return) but slower than the
+# robot default (500 mm/s / 20 deg/s) for a controlled, predictable motion.
+RETURN_LINEAR_SPEED  = 10.0   # mm/s
+RETURN_ANGULAR_SPEED =  3.0   # deg/s
 
 DWELL_SETTLE = 5.0   # s — pause between consecutive sweeps
 SAMPLE_RATE  = 10.0  # Hz
+
+# Acceleration for speedL velocity streaming.  Controls how quickly the robot
+# ramps to each commanded segment velocity.  Higher = tighter tracking.
+SERVO_ACCEL = 500.0  # mm/s²
 
 # ── END CONFIGURATION ─────────────────────────────────────────────────────────
 
@@ -139,12 +150,6 @@ def _units(axis: str):
         return "mm/s", "mm"
     return "deg/s", "deg"
 
-
-def _run(emulator: ShipEmulator, context: str) -> None:
-    """Run emulator; raise _Aborted if interrupted."""
-    if not emulator.run():
-        log.info("Interrupted during %s.", context)
-        raise _Aborted()
 
 
 def _start_pose(axis: str) -> tuple:
@@ -310,21 +315,24 @@ def main() -> int:
                         f"with {DWELL_SETTLE:.0f} s pauses between each.\n"
                         f"Press ENTER to begin sweeps, or Ctrl+C to abort."
                     )
-                    _run(
-                        ShipEmulator(
-                            _build_sweep_sequence(axis, v_max), interface, safety, cfg,
-                            on_move=bridge, home_at_start=False, home_at_end=False,
-                        ),
-                        f"sweeps of {label} level {level_num}",
-                    )
+                    poses = list(_build_sweep_sequence(axis, v_max).poses())
+                    if not servo_run(poses, interface, safety, bridge, SERVO_ACCEL):
+                        log.info("Interrupted during sweeps of %s level %d.", label, level_num)
+                        raise _Aborted()
 
                     # ── Step 3: home only after last level of this axis ───────
                     if is_last:
                         _enter(
                             f"\n{label} level {level_num}/{n_levels} complete.\n"
-                            f"Press ENTER to return to home position, or Ctrl+C to abort."
+                            f"Press ENTER to return to home position "
+                            f"({RETURN_LINEAR_SPEED} mm/s / {RETURN_ANGULAR_SPEED} deg/s), "
+                            f"or Ctrl+C to abort."
                         )
-                        interface.move_home()
+                        interface.move_linear_at(
+                            cfg.robot.home_pose,
+                            RETURN_LINEAR_SPEED,
+                            RETURN_ANGULAR_SPEED,
+                        )
                         interface.wait_until_stopped()
                         print("\nAt home position.")
                     else:

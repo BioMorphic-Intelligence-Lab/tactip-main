@@ -1,9 +1,10 @@
 import logging
 import signal
 import time
+from typing import List
 
 from ship_emulation.config import EmulatorConfig
-from ship_emulation.data_source import DataSource
+from ship_emulation.data_source import DataSource, ShipPose
 from ship_emulation.robot_interface import UR16Interface
 from ship_emulation.safety import SafetyChecker, SafetyViolation
 
@@ -150,3 +151,134 @@ class ShipEmulator:
             late_count,
         )
         return True
+
+
+def servo_run(
+    poses: List[ShipPose],
+    interface: UR16Interface,
+    safety: SafetyChecker,
+    on_move,
+    servo_accel: float,
+    speed_factor: float = 1.0,
+) -> bool:
+    """Stream Cartesian velocities derived from a pose list via speedL.
+
+    For each consecutive pair of poses the finite-difference velocity is sent
+    as a speedL segment of dt seconds.  Each segment executes on a URScript
+    background thread and returns immediately; the next call joins that thread
+    first, giving gapless back-to-back execution with no moveL stop-start
+    overhead.
+
+    speed_factor < 1 slows playback proportionally (velocity × speed_factor,
+    segment duration ÷ speed_factor).  The safety pre-check always runs at
+    the original 1× rates, so it remains conservative at any slower speed.
+
+    Returns True on clean completion, False if interrupted by Ctrl+C.
+    Raises EmulationError on safety violation.
+    """
+    if not poses:
+        return True
+
+    if speed_factor <= 0.0:
+        raise ValueError(f"speed_factor must be positive, got {speed_factor}")
+
+    safety.reset()
+
+    # Pre-check entire trajectory at original (1×) rates.
+    for pose in poses:
+        try:
+            safety.check(pose)
+        except SafetyViolation as e:
+            raise EmulationError(f"Safety violation in planned trajectory: {e}") from e
+
+    log.info("Moving to first trajectory pose ...")
+    interface.move_linear_at(poses[0].as_robot_pose(), 100.0, 5.0)
+    interface.wait_until_stopped()
+
+    stop_requested = False
+
+    def _handle(sig, frame):
+        nonlocal stop_requested
+        stop_requested = True
+        raise KeyboardInterrupt
+
+    orig_sigint  = signal.getsignal(signal.SIGINT)
+    orig_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGINT, _handle)
+    signal.signal(signal.SIGTERM, _handle)
+
+    _FEEDBACK_INTERVAL = 5.0   # s between progress log lines
+    _JOINT_WARN_DEG    = 25.0  # deg — warn if any joint moves this much in one segment
+                               # (normal ship motion: <10° per segment; a wrist flip: 90–180°)
+
+    n_total     = len(poses) - 1
+    n_segments  = 0
+    t_start     = time.monotonic()
+    t_last_fb   = t_start
+    prev_joints = None
+
+    try:
+        for i in range(n_total):
+            if stop_requested:
+                break
+
+            # ── Singularity detection ─────────────────────────────────────────
+            joints = interface.current_joint_angles
+            if joints is not None and prev_joints is not None:
+                deltas  = [abs(j1 - j0) for j1, j0 in zip(joints, prev_joints)]
+                max_d   = max(deltas)
+                max_idx = deltas.index(max_d)
+                if max_d > _JOINT_WARN_DEG:
+                    log.warning(
+                        "Large joint motion: joint %d moved %.1f° in one segment "
+                        "(t=+%.1fs) — possible singularity",
+                        max_idx + 1, max_d, time.monotonic() - t_start,
+                    )
+            prev_joints = joints
+
+            # ── Periodic progress feedback ────────────────────────────────────
+            now = time.monotonic()
+            if now - t_last_fb >= _FEEDBACK_INTERVAL:
+                elapsed  = now - t_start
+                progress = i / n_total
+                eta      = elapsed / progress * (1.0 - progress) if progress > 0 else 0.0
+                tcp      = interface.current_pose
+                if tcp is not None:
+                    pos_str = (
+                        f"x={tcp[0]:+.0f}  y={tcp[1]:+.0f}  z={tcp[2]:+.0f} mm  "
+                        f"roll={tcp[3]:+.1f}  pitch={tcp[4]:+.1f}  yaw={tcp[5]:+.1f}°"
+                    )
+                else:
+                    pos_str = "unavailable"
+                log.info(
+                    "t=+%.0fs  %.0f%%  ETA ~%.0fs  |  %s",
+                    elapsed, progress * 100, eta, pos_str,
+                )
+                t_last_fb = now
+
+            # ── Send velocity segment ─────────────────────────────────────────
+            p0, p1 = poses[i], poses[i + 1]
+            dt_orig     = p1.timestamp - p0.timestamp
+            dt_streamed = dt_orig / speed_factor
+            r0, r1      = p0.as_robot_pose(), p1.as_robot_pose()
+            velocity    = tuple((r1[j] - r0[j]) / dt_streamed for j in range(6))
+            interface.servo_linear_velocity(velocity, servo_accel, dt_streamed)
+            if on_move is not None:
+                on_move(p1)
+            n_segments += 1
+
+        interface.stop_linear(servo_accel)
+
+    except KeyboardInterrupt:
+        try:
+            interface.stop_linear(5000)
+            interface.wait_until_stopped()
+        except Exception:
+            pass
+        return False
+    finally:
+        signal.signal(signal.SIGINT, orig_sigint)
+        signal.signal(signal.SIGTERM, orig_sigterm)
+
+    log.info("Velocity streaming complete: %d segments", n_segments)
+    return not stop_requested

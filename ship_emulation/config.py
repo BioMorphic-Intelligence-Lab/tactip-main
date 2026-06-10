@@ -30,7 +30,7 @@ class SafetyConfig:
 class RobotConfig:
     ip: str = "172.17.0.2"
     tcp: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    work_frame: Tuple[float, ...] = (150.0, 500.0, 500.0, 0.0, 90.0, 90.0)
+    work_frame: Tuple[float, ...] = (-500.0, -150.0, 400.0, -90.0, 0.0, 90.0) # Extrinsic rotations
     home_pose: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  # work-frame (x y z roll pitch yaw) in mm/deg
     linear_speed: float = 500.0      # mm/s
     angular_speed: float = 20.0      # deg/s

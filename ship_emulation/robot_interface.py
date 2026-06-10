@@ -3,6 +3,8 @@ import math
 import time
 from typing import Tuple
 
+import numpy as np
+from scipy.spatial.transform import Rotation
 from cri.robot import SyncRobot, AsyncRobot
 from cri.controller import RTDEController
 
@@ -17,6 +19,7 @@ class UR16Interface:
         self._controller: RTDEController = None
         self._robot: AsyncRobot = None
         self._motion_pending = False
+        self._R_work_to_base = np.eye(3)
 
     def __enter__(self):
         self.connect()
@@ -38,6 +41,14 @@ class UR16Interface:
         self._robot.angular_speed = cfg.angular_speed
         self._robot.blend_radius = cfg.blend_radius
         self._motion_pending = False
+
+        # Precompute work-frame rotation matrix for velocity transformation.
+        # speedL operates in the base frame — CRI's coord_frame is not applied.
+        # We must rotate work-frame velocities into the base frame ourselves.
+        # CRI default Euler convention is sxyz (static/extrinsic XYZ = scipy 'xyz').
+        rx, ry, rz = cfg.work_frame[3], cfg.work_frame[4], cfg.work_frame[5]
+        self._R_work_to_base = Rotation.from_euler('xyz', [rx, ry, rz], degrees=True).as_matrix()
+
         log.info("Connected to UR16 at %s — %s", cfg.ip, self._robot.info)
 
     def close(self):
@@ -45,6 +56,7 @@ class UR16Interface:
             try:
                 if self._motion_pending:
                     self._robot.async_result()
+                    self._motion_pending = False
             except Exception:
                 pass
             self._robot.close()
@@ -67,6 +79,10 @@ class UR16Interface:
     ) -> None:
         """Stream one Cartesian velocity segment via speedL.
 
+        velocity must be expressed in the **work frame** (same convention as
+        all other interface methods).  It is rotated into the base frame here
+        before being passed to speedL, which always operates in the base frame.
+
         Returns almost immediately — the robot executes the velocity on a
         background thread for return_time seconds.  The next call joins that
         thread first, so consecutive calls produce gapless back-to-back motion.
@@ -78,7 +94,12 @@ class UR16Interface:
         if self._motion_pending:
             self._robot.async_result()
             self._motion_pending = False
-        self._controller.move_linear_velocity(velocity, accel, return_time)
+        v = np.asarray(velocity, dtype=np.float64)
+        v_base = np.concatenate([
+            self._R_work_to_base @ v[:3],
+            self._R_work_to_base @ v[3:],
+        ])
+        self._controller.move_linear_velocity(v_base, accel, return_time)
 
     def stop_linear(self, linear_accel: float = 2000.0) -> None:
         """Decelerate TCP smoothly to rest.  Does not close the connection."""

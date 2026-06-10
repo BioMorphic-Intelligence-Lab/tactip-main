@@ -12,7 +12,6 @@ Set FADE_IN_ENABLED = False to start playback at full amplitude immediately.
 """
 import logging
 import random
-import signal
 import sys
 from pathlib import Path
 from typing import Iterator, List, Optional
@@ -21,11 +20,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ship_emulation.config import AugmentationConfig, EmulatorConfig
 from ship_emulation.data_source import AugmentedSource, CsvFileSource, DataSource, ShipPose
-from ship_emulation.emulator import EmulationError
+from ship_emulation.emulator import EmulationError, servo_run
 from ship_emulation.motion_primitives import FadeInSource
 from ship_emulation.robot_interface import UR16Interface
 from ship_emulation.ros_bridge import RosBridge
-from ship_emulation.safety import SafetyChecker, SafetyViolation
+from ship_emulation.safety import SafetyChecker
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
@@ -36,10 +35,22 @@ ROBOT_IP = "172.17.0.2"
 #   1_vessel_motion_clean.csv
 #   2_vessel_motion_clean.csv  /  2a_vessel_motion_clean.csv  /  2b_vessel_motion_clean.csv
 #   3_vessel_motion_clean.csv
-CSV_FILE = "ship_emulation/1_vessel_motion_com_1m.csv"
+CSV_FILE = "ship_emulation/1_vessel_motion_com_1m_translated.csv"
 
 WINDOW_DURATION = 180.0  # s — length of the sampled window (3 minutes)
-RANDOM_SEED: Optional[int] = None  # set to an int for reproducibility
+RANDOM_SEED: Optional[int] = 1  # set to an int for reproducibility
+
+# Fix the window start time (seconds in the CSV).  When set to a float the
+# random sampler is bypassed and playback always begins at this timestamp.
+# Set to None to use random selection (governed by RANDOM_SEED).
+WINDOW_START: Optional[float] = None
+
+# Playback speed relative to real time.  1.0 = real time; 0.1 = 10× slower.
+# Values below 1.0 are useful for pre-flight checks: the full trajectory is
+# executed at reduced velocity so singularities and self-collisions can be
+# spotted before a full-speed run.  The safety pre-check always runs at the
+# original (1.0×) rates, so it remains conservative at any slower speed.
+PLAYBACK_SPEED = 1.0
 
 # Unit conversion applied to raw CSV columns
 LINEAR_SCALE  = 1000.0  # multiply x/y/z  (default: m → mm)
@@ -52,7 +63,7 @@ FADE_IN_DURATION = 10.0  # s — duration of the raised-cosine onset ramp
 # Acceleration for velocity streaming (speedL).  Higher values let the robot
 # track rapid velocity changes more faithfully; lower values give smoother but
 # more lag-prone motion.  2000 mm/s² is a good default for ship-motion rates.
-SERVO_ACCEL = 2000.0  # mm/s²
+SERVO_ACCEL = 1000.0  # mm/s²
 
 # ── END CONFIGURATION ─────────────────────────────────────────────────────────
 
@@ -87,6 +98,7 @@ def _build_source(
     angular_scale: float,
     fade_in_enabled: bool,
     fade_in_duration: float,
+    window_start: Optional[float] = None,
 ) -> tuple:
     with CsvFileSource(csv_path) as raw:
         all_poses = list(raw.poses())
@@ -103,19 +115,34 @@ def _build_source(
             f"CSV spans only {total_span:.1f} s — cannot sample a {window_duration:.1f} s window"
         )
 
-    rng     = random.Random(seed)
-    t_start = t_data_start + rng.uniform(0.0, total_span - window_duration)
-    t_end   = t_start + window_duration
+    if window_start is not None:
+        t_start = float(window_start)
+        if t_start < t_data_start or t_start + window_duration > t_data_end:
+            raise ValueError(
+                f"WINDOW_START={t_start:.3f} s places the window outside the CSV range "
+                f"[{t_data_start:.3f}, {t_data_end:.3f}] s"
+            )
+        log.info(
+            "CSV data span:    t=%.3f s – %.3f s  (%.1f s total)",
+            t_data_start, t_data_end, total_span,
+        )
+        log.info(
+            "Fixed window:     t=%.3f s – %.3f s  (%.1f s, WINDOW_START override)",
+            t_start, t_start + window_duration, window_duration,
+        )
+    else:
+        rng     = random.Random(seed)
+        t_start = t_data_start + rng.uniform(0.0, total_span - window_duration)
+        log.info(
+            "CSV data span:    t=%.3f s – %.3f s  (%.1f s total)",
+            t_data_start, t_data_end, total_span,
+        )
+        log.info(
+            "Selected window:  t=%.3f s – %.3f s  (%.1f s, seed=%s)",
+            t_start, t_start + window_duration, window_duration, seed,
+        )
 
-    log.info(
-        "CSV data span:    t=%.3f s – %.3f s  (%.1f s total)",
-        t_data_start, t_data_end, total_span,
-    )
-    log.info(
-        "Selected window:  t=%.3f s – %.3f s  (%.1f s, seed=%s)",
-        t_start, t_end, window_duration, seed,
-    )
-
+    t_end     = t_start + window_duration
     windowed  = _WindowedSource(all_poses, t_start, t_end)
     augmented = AugmentedSource(
         windowed,
@@ -123,79 +150,6 @@ def _build_source(
     )
     return FadeInSource(augmented, duration=fade_in_duration, enabled=fade_in_enabled), t_start
 
-
-def _servo_run(
-    poses: List[ShipPose],
-    interface: UR16Interface,
-    safety: SafetyChecker,
-    on_move,
-    servo_accel: float,
-) -> bool:
-    """Stream Cartesian velocities derived from the pose sequence via speedL.
-
-    For each consecutive pair of poses, the finite-difference velocity is sent
-    as a speedL segment of exactly dt seconds.  The URScript executes each
-    segment on a background thread and returns immediately; the next segment
-    joins the thread first, giving gapless back-to-back execution with no
-    moveL stop-start overhead.
-
-    Returns True on clean completion, False if interrupted.
-    """
-    if not poses:
-        return True
-
-    # Pre-check the entire commanded trajectory against workspace limits.
-    for pose in poses:
-        try:
-            safety.check(pose)
-        except SafetyViolation as e:
-            raise EmulationError(f"Safety violation in planned trajectory: {e}") from e
-
-    # Move to the first pose slowly before streaming begins.
-    log.info("Moving to first trajectory pose ...")
-    interface.move_linear_at(poses[0].as_robot_pose(), 100.0, 5.0)
-    interface.wait_until_stopped()
-
-    stop_requested = False
-
-    def _handle(sig, frame):
-        nonlocal stop_requested
-        stop_requested = True
-        raise KeyboardInterrupt
-
-    orig_sigint  = signal.getsignal(signal.SIGINT)
-    orig_sigterm = signal.getsignal(signal.SIGTERM)
-    signal.signal(signal.SIGINT, _handle)
-    signal.signal(signal.SIGTERM, _handle)
-
-    n_segments = 0
-    try:
-        for i in range(len(poses) - 1):
-            if stop_requested:
-                break
-            p0, p1 = poses[i], poses[i + 1]
-            dt = p1.timestamp - p0.timestamp
-            r0, r1 = p0.as_robot_pose(), p1.as_robot_pose()
-            velocity = tuple((r1[j] - r0[j]) / dt for j in range(6))
-            interface.servo_linear_velocity(velocity, servo_accel, dt)
-            if on_move is not None:
-                on_move(p1)
-            n_segments += 1
-
-        interface.stop_linear(servo_accel)
-
-    except KeyboardInterrupt:
-        try:
-            interface.stop_linear(servo_accel)
-        except Exception:
-            pass
-        return False
-    finally:
-        signal.signal(signal.SIGINT, orig_sigint)
-        signal.signal(signal.SIGTERM, orig_sigterm)
-
-    log.info("Velocity streaming complete: %d segments", n_segments)
-    return not stop_requested
 
 
 def _enter(prompt: str) -> None:
@@ -221,18 +175,22 @@ def main() -> int:
             ANGULAR_SCALE,
             FADE_IN_ENABLED,
             FADE_IN_DURATION,
+            window_start=WINDOW_START,
         )
     except ValueError as e:
         print(f"Configuration error: {e}", file=sys.stderr)
         return 1
 
+    window_mode  = f"fixed t={WINDOW_START:.1f} s" if WINDOW_START is not None else f"random (seed={RANDOM_SEED})"
+    speed_note   = f"{PLAYBACK_SPEED:.2g}× (slow-check mode)" if PLAYBACK_SPEED != 1.0 else "1× (real time)"
     print(
         "\n" + "═" * 62 + "\n"
         "  Phase 2 — Ship motion emulation\n"
         + "═" * 62 + "\n"
-        f"  CSV    : {CSV_FILE}\n"
-        f"  Window : {WINDOW_DURATION:.0f} s\n"
-        f"  Fade-in: {FADE_IN_DURATION:.0f} s ({'enabled' if FADE_IN_ENABLED else 'DISABLED'})\n"
+        f"  CSV          : {CSV_FILE}\n"
+        f"  Window       : {WINDOW_DURATION:.0f} s  [{window_mode}]\n"
+        f"  Playback     : {speed_note}\n"
+        f"  Fade-in      : {FADE_IN_DURATION:.0f} s ({'enabled' if FADE_IN_ENABLED else 'DISABLED'})\n"
         + "─" * 62 + "\n"
         "  Ensure the workspace is clear.\n"
         "  Keep the physical E-stop within reach at all times.\n"
@@ -262,14 +220,16 @@ def main() -> int:
             actual_duration = poses[-1].timestamp - poses[0].timestamp if poses else 0.0
             log.info("Loaded %d poses  (%.1f s)", len(poses), actual_duration)
 
+            actual_wall = actual_duration / PLAYBACK_SPEED
             _enter(
                 f"\nTrajectory loaded: {len(poses)} poses  ({actual_duration:.1f} s)\n"
-                f"Window start     : t={window_t_start:.3f} s in CSV  (seed={RANDOM_SEED})\n"
+                f"Window start     : t={window_t_start:.3f} s in CSV\n"
+                f"Playback speed   : {PLAYBACK_SPEED:.2g}×  →  wall time ≈ {actual_wall:.0f} s\n"
                 f"Fade-in          : {FADE_IN_DURATION:.0f} s ({'enabled' if FADE_IN_ENABLED else 'DISABLED'})\n"
                 "Press ENTER to start emulation, or Ctrl+C to abort."
             )
 
-            _servo_run(poses, interface, safety, bridge, SERVO_ACCEL)
+            servo_run(poses, interface, safety, bridge, SERVO_ACCEL, speed_factor=PLAYBACK_SPEED)
 
             print("\nEmulation complete. Returning to home position.")
             interface.move_home()
