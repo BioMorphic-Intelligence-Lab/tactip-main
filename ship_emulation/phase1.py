@@ -36,12 +36,13 @@ from ship_emulation.safety import SafetyChecker
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
-ROBOT_IP = "172.17.0.2"
+#ROBOT_IP = "172.17.0.2" # sim
+ROBOT_IP = "192.168.56.101" # real
 BLEND_RADIUS = 3.0  # mm
 
 # DoF order: Rx (roll), Ry (pitch), shear-x, shear-y, depth-z.  Remove any to skip.
 #AXES = ["roll", "pitch", "x", "y", "z"]
-AXES = ['y', 'z']
+AXES = ["x", "y", "z"]
 
 # Sweep start and end positions per axis [mm for linear, deg for angular].
 # The robot alternates between SWEEP_START and SWEEP_END for TRAP_N_CYCLES sweeps.
@@ -49,52 +50,46 @@ AXES = ['y', 'z']
 SWEEP_START = {
     "roll":  -45.0,   # deg
     "pitch": -45.0,   # deg
-    "x":    -400.0,   # mm
-    "y":    -400.0,   # mm
-    "z":       0.0,   # mm
+    "x":    -350.0,   # mm, y in base frame, this value is in work frame!
+    "y":    -500.0,   # mm, -z in base frame, this value is in work frame!
+    "z":    -250.0,   # mm, -x in base frame, this value is in work frame!
 }
 SWEEP_END = {
     "roll":   45.0,   # deg
     "pitch":  45.0,   # deg
-    "x":     400.0,   # mm
-    "y":     400.0,   # mm
-    "z":     300.0,   # mm
+    "x":     650.0,   # mm, y in base frame, this value is in work frame!
+    "y":     500.0,   # mm, -z in base frame, this value is in work frame!
+    "z":     250.0,   # mm, -x in base frame, this value is in work frame!
 }
 
 # Acceleration per axis [mm/s² or deg/s²]
 TRAP_ACCELERATION = {
-    "roll":  45.0,   # deg/s²
-    "pitch": 45.0,
-    "x":     600.0,  # mm/s²
-    "y":     600.0,
-    "z":     30.0,
+    "roll":  15.0,   # deg/s²
+    "pitch": 15.0,
+    "x":     500.0,  # mm/s²
+    "y":     500.0,
+    "z":     100.0,
 }
 
 # Velocity levels — one entry per level, tested low → high.
 # Each level runs all DoFs before moving to the next.
 # Angular: deg/s, linear: mm/s.
 TRAP_VELOCITIES = [
-    {"roll": 3.0,  "pitch": 3.0,  "x":  100.0, "y":  100.0, "z":    50.0},
+    {"roll": 3.0,  "pitch": 3.0,  "x":  100.0, "y":  100.0, "z":   50.0},
     {"roll": 5.0,  "pitch": 5.0,  "x":  300.0, "y":  300.0, "z":   150.0},
     {"roll": 10.0, "pitch": 10.0, "x":  600.0, "y":  600.0, "z":   300.0},
 ]
 
-TRAP_N_CYCLES = 2   # one-way sweeps per DoF per level
+TRAP_N_CYCLES = 6   # one-way sweeps per DoF per level
 
 # Speed for the slow approach from home (0) to sweep start position (−A).
 # Applies to roll, pitch, x, y only. Keep well below lowest TRAP_VELOCITIES.
 APPROACH_VELOCITY = {
     "roll":  3.0,   # deg/s
     "pitch": 3.0,   # deg/s
-    "x":     10.0,   # mm/s
-    "y":     10.0,   # mm/s
+    "x":     50.0,   # mm/s
+    "y":     50.0,   # mm/s
 }
-
-# Speed for the return-to-home move after the last level of each axis.
-# Faster than APPROACH_VELOCITY (no contact on return) but slower than the
-# robot default (500 mm/s / 20 deg/s) for a controlled, predictable motion.
-RETURN_LINEAR_SPEED  = 10.0   # mm/s
-RETURN_ANGULAR_SPEED =  3.0   # deg/s
 
 DWELL_SETTLE = 5.0   # s — pause between consecutive sweeps
 SAMPLE_RATE  = 10.0  # Hz
@@ -242,7 +237,11 @@ def main() -> int:
                 "\nConnected to robot.\n"
                 "Press ENTER to move to home position, or Ctrl+C to abort."
             )
-            interface.move_home()
+            interface.move_linear_at(
+                            cfg.robot.home_pose,
+                            _TRANSITION_LINEAR_SPEED,
+                            _TRANSITION_ANGULAR_SPEED,
+                        )
             interface.wait_until_stopped()
             print("\nAt home position.")
 
@@ -325,13 +324,13 @@ def main() -> int:
                         _enter(
                             f"\n{label} level {level_num}/{n_levels} complete.\n"
                             f"Press ENTER to return to home position "
-                            f"({RETURN_LINEAR_SPEED} mm/s / {RETURN_ANGULAR_SPEED} deg/s), "
+                            f"({_TRANSITION_LINEAR_SPEED} mm/s / {_TRANSITION_ANGULAR_SPEED} deg/s), "
                             f"or Ctrl+C to abort."
                         )
                         interface.move_linear_at(
                             cfg.robot.home_pose,
-                            RETURN_LINEAR_SPEED,
-                            RETURN_ANGULAR_SPEED,
+                            _TRANSITION_LINEAR_SPEED,
+                            _TRANSITION_ANGULAR_SPEED,
                         )
                         interface.wait_until_stopped()
                         print("\nAt home position.")

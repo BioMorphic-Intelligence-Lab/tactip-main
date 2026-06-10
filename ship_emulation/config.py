@@ -4,12 +4,12 @@ from typing import Optional, Tuple
 
 @dataclass
 class WorkspaceLimits:
-    x_min: float = -500.0
-    x_max: float = 500.0
-    y_min: float = -500.0
-    y_max: float = 500.0
-    z_min: float = -500.0
-    z_max: float = 500.0
+    x_min: float = -400.0
+    x_max: float = 700.0
+    y_min: float = -550.0
+    y_max: float = 550.0
+    z_min: float = -300.0
+    z_max: float = 300.0
     roll_min: float = -90.0
     roll_max: float = 90.0
     pitch_min: float = -90.0
@@ -28,9 +28,10 @@ class SafetyConfig:
 
 @dataclass
 class RobotConfig:
-    ip: str = "172.17.0.2"
+    #ip: str = "172.17.0.2" # Simulated robot
+    ip: str = "192.168.56.101" # Real robot
     tcp: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    work_frame: Tuple[float, ...] = (-500.0, -150.0, 400.0, -90.0, 0.0, 90.0) # Extrinsic rotations
+    work_frame: Tuple[float, ...] = (-650.0, -150.0, 400.0, -90.0, 0.0, 90.0) # Extrinsic rotations
     home_pose: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  # work-frame (x y z roll pitch yaw) in mm/deg
     linear_speed: float = 500.0      # mm/s
     angular_speed: float = 20.0      # deg/s
