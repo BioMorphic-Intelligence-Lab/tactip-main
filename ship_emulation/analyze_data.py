@@ -25,7 +25,7 @@ POSITION_COLS = ["linear_x", "linear_y", "linear_z"]
 ROTATION_COLS = ["rotation_x", "rotation_y", "rotation_z"]
 TIME_COL = "time"
 
-DEFAULT_CSV = Path(__file__).parent / "2_vessel_motion_clean.csv"
+DEFAULT_CSV = Path(__file__).parent / "2b_vessel_motion_clean.csv"
 
 
 def load(path: Path):
@@ -97,15 +97,19 @@ def apply_smoothing(data, s_linear, s_angular):
 
 
 def print_rate_stats(data, pos_unit, rot_unit):
-    _, linear_rate, angular_rate, per_axis = compute_rates(data)
-    unit = f"{pos_unit}/s"
+    _, linear_rate, angular_rate, per_axis_linear, per_axis_angular = compute_rates(data)
+    lunit = f"{pos_unit}/s"
+    aunit = f"{rot_unit}/s"
     print(f"\n{'Rate':<20} {'units':>8} {'min':>10} {'max':>10} {'mean':>10} {'std':>10}")
     print("-" * 74)
-    print(f"{'linear_rate (‖v‖)':<20} {unit:>8} {linear_rate.min():>10.4f} {linear_rate.max():>10.4f} {linear_rate.mean():>10.4f} {linear_rate.std():>10.4f}")
-    for col, values in per_axis.items():
+    print(f"{'linear_rate (‖v‖)':<20} {lunit:>8} {linear_rate.min():>10.4f} {linear_rate.max():>10.4f} {linear_rate.mean():>10.4f} {linear_rate.std():>10.4f}")
+    for col, values in per_axis_linear.items():
         label = f"  {col}"
-        print(f"{label:<20} {unit:>8} {values.min():>10.4f} {values.max():>10.4f} {values.mean():>10.4f} {values.std():>10.4f}")
-    print(f"{'angular_rate (max|ω|)':<20} {f'{rot_unit}/s':>8} {angular_rate.min():>10.4f} {angular_rate.max():>10.4f} {angular_rate.mean():>10.4f} {angular_rate.std():>10.4f}")
+        print(f"{label:<20} {lunit:>8} {values.min():>10.4f} {values.max():>10.4f} {values.mean():>10.4f} {values.std():>10.4f}")
+    print(f"{'angular_rate (max|ω|)':<20} {aunit:>8} {angular_rate.min():>10.4f} {angular_rate.max():>10.4f} {angular_rate.mean():>10.4f} {angular_rate.std():>10.4f}")
+    for col, values in per_axis_angular.items():
+        label = f"  {col}"
+        print(f"{label:<20} {aunit:>8} {values.min():>10.4f} {values.max():>10.4f} {values.mean():>10.4f} {values.std():>10.4f}")
 
 
 def compute_rates(data):
@@ -115,13 +119,14 @@ def compute_rates(data):
     rot = np.stack([data[c] for c in ROTATION_COLS], axis=1)
     linear_rate = np.linalg.norm(np.diff(pos, axis=0), axis=1) / dt
     angular_rate = np.max(np.abs(np.diff(rot, axis=0)), axis=1) / dt
-    per_axis_linear = {col: np.diff(data[col]) / dt for col in POSITION_COLS}
-    return t[1:], linear_rate, angular_rate, per_axis_linear
+    per_axis_linear  = {col: np.diff(data[col]) / dt for col in POSITION_COLS}
+    per_axis_angular = {col: np.diff(data[col]) / dt for col in ROTATION_COLS}
+    return t[1:], linear_rate, angular_rate, per_axis_linear, per_axis_angular
 
 
 def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=None):
     t = data[TIME_COL]
-    t_rate, linear_rate, angular_rate, _ = compute_rates(data)
+    t_rate, linear_rate, angular_rate, _, _ = compute_rates(data)
 
     title = "Vessel Motion Inspection"
     if title_suffix:
@@ -188,7 +193,7 @@ def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=N
     p95 = np.percentile(linear_rate, 95)
     ax_lr.axhline(p95, color="red", linestyle="--", linewidth=0.8, label=f"p95={p95:.1f}")
     if smoothed_data:
-        _, s_linear_rate, _, _ = compute_rates(smoothed_data)
+        _, s_linear_rate, _, _, _ = compute_rates(smoothed_data)
         ax_lr.plot(t_rate, s_linear_rate, linewidth=1.2, color="steelblue", label="smoothed")
         s_p95 = np.percentile(s_linear_rate, 95)
         ax_lr.axhline(s_p95, color="navy", linestyle="--", linewidth=0.8, label=f"smoothed p95={s_p95:.1f}")
@@ -203,7 +208,7 @@ def plot(data, pos_unit, rot_unit, title_suffix, smoothed_data=None, save_path=N
     p95 = np.percentile(angular_rate, 95)
     ax_ar.axhline(p95, color="red", linestyle="--", linewidth=0.8, label=f"p95={p95:.1f}")
     if smoothed_data:
-        _, _, s_angular_rate, _ = compute_rates(smoothed_data)
+        _, _, s_angular_rate, _, _ = compute_rates(smoothed_data)
         ax_ar.plot(t_rate, s_angular_rate, linewidth=1.2, color="darkorange", label="smoothed")
         s_p95 = np.percentile(s_angular_rate, 95)
         ax_ar.axhline(s_p95, color="saddlebrown", linestyle="--", linewidth=0.8, label=f"smoothed p95={s_p95:.1f}")
@@ -409,12 +414,12 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main([
-        "--csv", "ship_emulation/3_vessel_motion_clean.csv",
-        #"--linear-scale", "1.0", # meter to mm
-        #"--angular-scale", "1.0",
-        "--offset-x", "0.0", # forward of COG (bow direction, total length 103 m)
-        "--offset-y", "8.0", # side of ship (beam direction, total 16 m)
-        "--offset-z", "10.0", # vertical offset (total height of ship, 16 m, draft 6.7 m)
+        "--csv", "ship_emulation/1_vessel_motion_com_1m_translated.csv",
+        #"--linear-scale", "0.5", # meter to mm
+        #"--angular-scale", "0.5",
+        #"--offset-x", "0.0", # forward of COG (bow direction, total length 103 m)
+        #"--offset-y", "8.0", # side of ship (beam direction, total 16 m)
+        #"--offset-z", "8.0", # vertical offset (total height of ship, 16 m, draft 6.7 m)
         # "--overlay-roll-amp", "0.0",
         # "--overlay-roll-freq", "0.0",
         # "--overlay-pitch-amp", "0.0",
@@ -422,7 +427,7 @@ if __name__ == "__main__":
         # "--overlay-yaw-amp", "0.0",
         # "--overlay-yaw-freq", "0.0",
         # "--smooth-linear", "0.0", # 0 removes smoothing
-        "--fourier",
+        # "--fourier",
         # "--lpf-cutoff", "0.5",
         # "--smooth-angular", "1e2",
         # "--save", "vessel_motion.png",

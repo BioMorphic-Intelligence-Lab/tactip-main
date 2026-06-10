@@ -20,19 +20,17 @@ Vessel motion data is generated in **OrcaFlex 11** (103 m LOA vessel). The pipel
 
 ### Dataset status
 
-| Channel | Raw data | Target | Status |
+Raw data is recorded at a measurement point near the vessel stern. `transform_to_com.py` shifts this to the vessel CoG using a rigid-body transformation, eliminating lever-arm amplification of the linear channels. After the transform, linear output is mean-centred so the robot starts at its work-frame origin.
+
+| Channel | At stern point | At CoG (after transform) | Status |
 |---|---|---|---|
-| Linear z (largest) | ±1.1 m, 1.1 m/s peak | ±0.6 m, ≤0.3 m/s | Pending sim change + smoothing |
-| Angular (all axes) | ±1.9°, 1.6 °/s peak | ±15°, proportional | Pending sim change |
-
-**Planned OrcaFlex changes (to request from collaborator):**
-1. Move measurement point to vessel CoG — eliminates lever-arm amplification of linear channels
-2. Tune sea state peak frequency toward natural roll period, or reduce vessel GM — drives angular amplitude to ±15°
-
-After those changes, gentle spline smoothing on the linear channels is still expected to be necessary to trim peak velocity (physical constraint: v_max = 2πf·A at ~0.1 Hz gives ~0.38 m/s for ±0.6 m amplitude). This is reported in the paper as a robot safety measure, not a physics intervention.
+| Linear z (largest) | ±1.1 m, 1.1 m/s peak | reduced | Available via `transform_to_com.py` |
+| Angular (all axes) | ±1.9°, 1.6 °/s peak | unchanged (rigid body) | As-is |
 
 **Post-processing approach chosen:**
-- Spline smoothing (`SmoothedSource`) on linear channels for velocity management
+- Rigid-body transform to CoG via `transform_to_com.py` (lever-arm correction)
+- Mean-centering of linear channels (robot starts from work-frame origin)
+- Optional spline smoothing (`SmoothedSource`) on linear channels for velocity management
 - No spectral scaling or sinusoidal overlay planned — keeps OrcaFlex data as the sole physics source
 
 ---
@@ -91,11 +89,13 @@ ship_emulation/
 ├── phase2.py                ✅ Phase 2 ship motion emulation script
 ├── run.py                   ✅ general-purpose CLI entry point
 ├── analyze_data.py          ✅ data inspection, augmentation preview, smoothing preview
-├── 1_vessel_motion_clean.csv  (sea state 1 — default for Phase 2)
+├── transform_to_com.py      ✅ rigid-body transform from stern measurement point to vessel CoG
+├── 1_vessel_motion_clean.csv  (sea state 1 — raw stern data)
+├── 1_vessel_motion_com.csv    (sea state 1 — CoG-transformed, mean-centred)
 ├── 2_vessel_motion_clean.csv  \
-├── 2a_vessel_motion_clean.csv  > sea state 2 variants
+├── 2a_vessel_motion_clean.csv  > sea state 2 variants (raw)
 ├── 2b_vessel_motion_clean.csv /
-└── 3_vessel_motion_clean.csv  (sea state 3)
+└── 3_vessel_motion_clean.csv  (sea state 3 — raw)
 ```
 
 All CSV files: 10 Hz sample rate, ~1 hour duration, columns: `time, x, y, z, roll, pitch, yaw` (positions in metres, angles in degrees).
@@ -148,18 +148,31 @@ python -m ship_emulation.phase1
 ```
 
 ### Phase 2 — Ship motion emulation (`phase2.py`)
-Randomly samples a configurable window (default 3 minutes) from a vessel motion CSV file and replays it on the UR16. A raised-cosine fade-in (default 10 s) ramps the amplitude from zero at the start, preventing a velocity step when the UAM is already in contact.
+Randomly samples a configurable window (default 3 minutes) from a vessel motion CSV file and replays it on the UR16 using **Cartesian velocity streaming** (`speedL`) for smooth, gap-free motion.
+
+**Why velocity streaming?** The `moveL`-based `ShipEmulator` must decelerate to a full stop at every waypoint. For ship-motion amplitudes (~30–300 mm per 100 ms step) this takes far longer than the available time budget, causing runaway lateness. `speedL` instead runs each 100 ms velocity segment on a background thread and returns immediately; the next call joins the thread first, giving gapless back-to-back execution with no stop-start overhead.
+
+**Experiment flow:**
+1. ENTER → connect to robot
+2. ENTER → move to home position
+3. Load and safety-check the entire trajectory before any motion
+4. ENTER → begin emulation
+   - Slow `moveL` to the first trajectory pose
+   - Stream finite-difference Cartesian velocities via `speedL` for each consecutive pose pair
+   - Decelerate to rest at the end
+5. Return to home position
 
 **Key configuration parameters** (edit at the top of `phase2.py`):
 
 | Parameter | Default | Notes |
 |---|---|---|
-| `CSV_FILE` | `1_vessel_motion_clean.csv` | Path to vessel motion data |
+| `CSV_FILE` | `1_vessel_motion_com.csv` | Path to vessel motion data (use CoG-transformed file) |
 | `WINDOW_DURATION` | 180 s | Length of sampled window |
 | `RANDOM_SEED` | `None` | Set to an int for reproducibility |
 | `FADE_IN_ENABLED` | `True` | Smooth onset ramp |
 | `FADE_IN_DURATION` | 10 s | Raised-cosine ramp duration |
 | `LINEAR_SCALE` | 1000.0 | m → mm conversion |
+| `SERVO_ACCEL` | 2000.0 mm/s² | Acceleration for `speedL`; higher = tighter velocity tracking |
 
 The selected window timestamps are logged at INFO level for post-processing cross-reference.
 
@@ -253,6 +266,8 @@ Five dataclasses:
 - `connect()` — opens RTDE, sets tcp/work_frame/speeds/accel/blend_radius from config
 - `move_home()` — linear move to `RobotConfig.home_pose` in the work frame; synchronous/blocking. Because home is Cartesian, the emulator's automatic "move to first pose" step is a guaranteed no-op when sequences start from zero.
 - `move_linear_at(pose, linear_speed, angular_speed)` — blocking linear move at explicitly specified speeds; temporarily overrides the robot's configured speeds and restores them afterwards. Used for slow approach and inter-axis positioning moves.
+- `servo_linear_velocity(velocity, accel, return_time)` — sends one `speedL` segment via CRI command 11. Returns almost immediately (URScript starts the move on a background thread and signals completion at once). The next call joins that thread first, so consecutive calls produce gapless back-to-back motion. `velocity = (vx, vy, vz, v_roll, v_pitch, v_yaw)` in mm/s and deg/s; `accel` in mm/s²; `return_time` in seconds. Used by Phase 2.
+- `stop_linear(linear_accel)` — decelerate TCP smoothly to rest (joins any running `speedL` thread then calls `stopl`). Does not close the connection — use `emergency_stop()` for that.
 - `wait_until_stopped()` — polls actual TCP velocity via RTDE until below threshold (default 2 mm/s); call after any blocking move to confirm the robot has physically settled before issuing the next command
 - `move_to(pose)` — `async_move_linear`; waits for any in-flight move first; returns immediately
 - `wait_for_motion()` — blocks until current async move done
@@ -268,12 +283,13 @@ Five dataclasses:
   3. If `home_at_start`: `move_home()` → `wait_until_stopped()`
   4. Consume first pose from source, safety-check it, blocking move to start position (no-op when robot is already there)
   5. Timed loop: for each remaining pose → `safety.check()` → sleep to sim timestamp → `move_to()` → `on_move(pose)`
-  6. If robot still moving when next pose is due: log warning, wait (advises reducing speed or rate)
+  6. If robot still moving when next pose is due: wait for motion, then drain iterator forward to current real-time to catch up, logging one warning per skip event with the count of skipped poses
   7. On `SafetyViolation`: `emergency_stop()`, raise `EmulationError`
   8. On graceful stop or source exhausted: `wait_for_motion()` → if `home_at_end`: `move_home()`
 - Returns `True` on normal completion, `False` if interrupted by Ctrl+C — callers raise `_Aborted` to unwind cleanly
 - Timing: `time.monotonic()`; sleeps < 5 ms are skipped
 - Logs total pose count and late-move count on completion
+- Note: `ShipEmulator` is used by Phase 1. Phase 2 uses `_servo_run()` (velocity streaming) instead.
 
 #### `motion_primitives.py`
 Generates synthetic motion trajectories as `DataSource` implementations, all on a single axis with other axes held at zero. Used by `phase1.py`; composable for future sequences.
@@ -307,10 +323,24 @@ Shared ROS 2 publisher for commanded and actual robot poses. Designed to work wi
 #### `analyze_data.py`
 - Standalone inspection script; run with `python -m ship_emulation.analyze_data`
 - Same CLI args as `run.py` for augmentation and smoothing, plus `--save OUT.png`
-- Prints stats table (min/max/mean/std) for position channels — for both raw and smoothed data when smoothing is enabled
-- Prints rate stats (linear rate ‖Δpos‖/Δt and angular rate max|Δrot|/Δt) for raw and smoothed data
+- Prints stats table (min/max/mean/std) for all 6 channels
+- Prints rate stats: linear rate ‖Δpos‖/Δt with per-axis breakdown, and angular rate max|Δrot|/Δt with per-axis breakdown (all three rotation channels shown individually)
 - Plots: position time series, rotation time series, XY trajectory, XZ trajectory, linear rate, angular rate — raw faded + smoothed overlay when smoothing is enabled; p95 lines on rate plots for both raw and smoothed
+- `--fourier`: Welch PSD for all 6 channels, dominant frequency, fraction of power above configurable thresholds, recommendation for whether low-pass filtering is needed
 - `__main__` block contains explicit args for quick interactive use
+
+#### `transform_to_com.py`
+Transforms a vessel motion CSV recorded at a stern measurement point to equivalent motion at the ship's centre of mass (CoG), using a full rigid-body homogeneous transformation.
+
+- **Physics:** builds per-timestep homogeneous matrices `T = [R | d_A; 0 1]` from the CSV Euler angles and reference-point displacements, applies `d_CoG = T @ [r; 1] - r` where `r = −COM_OFFSET` is the body-frame vector from measurement point to CoG. Vectorised over all rows at once (no Python loop).
+- **Mean-centring:** subtracts the mean of each linear channel from the output so the CoG data is centred at the work-frame origin.
+- **Configuration:** `COM_OFFSET = (dx, dy, dz)` is the vector **from CoG to measurement point P** in the body frame (i.e. where P sits relative to the CoG), in the same units as the CSV (metres). `EULER_CONVENTION` (default `'xyz'`, intrinsic) and `ANGLES_IN_DEGREES` match the CSV convention.
+- Prints max position correction applied per axis so the lever-arm effect can be verified.
+
+Run:
+```bash
+python -m ship_emulation.transform_to_com
+```
 
 ### Key CRI API notes
 - `RTDEController.linear_accel` / `angular_accel` set on the controller before wrapping in `SyncRobot`
@@ -358,8 +388,9 @@ python -m ship_emulation.run
 
 - **`work_frame`** in `RobotConfig` must match your physical setup — it defines the Cartesian origin for CSV pose offsets. CSV data contains relative displacements, so if `work_frame=(0,0,0,0,0,0)` the robot will try to reach absolute coordinates from its base frame, which are unreachable.
 - **`home_pose`** in `RobotConfig` is a Cartesian pose in the work frame (default `(0,0,0,0,0,0)`). All motion sequences in `phase1.py` start from zero, so setting `home_pose = (0,0,0,0,0,0)` ensures the emulator's automatic "move to first pose" step is always a no-op. If you need a raised safe position between axes, set `home_pose` accordingly and adjust `SWEEP_START` / `SWEEP_END` to use the same reference frame.
-- If the robot cannot keep up with the simulation rate (logged as "late" moves), reduce `SafetyConfig.max_linear_rate` / `max_angular_rate`, or increase `RobotConfig.linear_speed` / `angular_speed` — within safe limits. Alternatively, increase the smoothing factor to reduce peak velocity in the data.
 - **Physical E-stop must always be within operator reach when the robot is powered.**
-- **CRI/RTDE throughput limit:** `moveL` commands via CRI have ~80–150 ms round-trip overhead per command (send → robot executes → done signal). Effective maximum command rate is ~10–13 Hz. Running `SAMPLE_RATE` above this causes unbounded lateness accumulation. Keep `SAMPLE_RATE = 10.0` for both phase scripts.
-- **`blend_radius`:** setting a non-zero blend radius (default 3 mm in `phase1.py`) allows the UR controller to pipeline consecutive `moveL` commands without a full stop at each waypoint. For smooth trajectories (sine, slow ramps) the path deviation is negligible except at amplitude peaks where the robot turns around ~`blend_radius` early. For stop-and-go characterisation set `blend_radius = 0`.
+- **Phase 1 late moves:** `ShipEmulator` uses `moveL`, which must decelerate to a full stop at each waypoint. For Phase 1 trapezoidal profiles this is fine — the profiles are slow and dwell at endpoints. If late-move warnings appear, reduce `TRAP_VELOCITIES` or increase `DWELL_SETTLE`. The emulator skips stale poses to catch up rather than queuing them, so lateness does not snowball; one warning is logged per catch-up event.
+- **Phase 2 velocity streaming:** `speedL` (CRI command 11) runs each segment on a URScript background thread and signals completion immediately. The next call joins the thread first, giving gapless back-to-back execution. Position drifts slightly over a long run (velocity-control error), but this is acceptable for sensor characterisation where the goal is realistic forces and accelerations, not absolute position accuracy.
+- **`SERVO_ACCEL`** controls how quickly the robot responds to velocity changes between consecutive `speedL` segments. 2000 mm/s² works well for typical ship-motion rates; lower values smooth out rapid velocity changes at the cost of tracking lag.
+- **`blend_radius`:** relevant for Phase 1 only. Setting a non-zero value (default 3 mm) allows the UR controller to pipeline consecutive `moveL` commands without a full stop at each waypoint. For stop-and-go characterisation set `blend_radius = 0`.
 - **Running the scripts:** the venv at `venv-tactip/` must be active. Scripts include a `sys.path` insert so they can be run directly or as modules from the repo root.

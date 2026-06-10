@@ -21,7 +21,7 @@ class WorkspaceLimits:
 @dataclass
 class SafetyConfig:
     workspace: WorkspaceLimits = field(default_factory=WorkspaceLimits)
-    max_linear_rate: float = 500.0   # mm/s
+    max_linear_rate: float = 850.0   # mm/s
     max_angular_rate: float = 50.0   # deg/s
     min_dt: float = 0.005            # s
 
@@ -30,7 +30,7 @@ class SafetyConfig:
 class RobotConfig:
     ip: str = "172.17.0.2"
     tcp: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    work_frame: Tuple[float, ...] = (400.0, -150.0, 500.0, 0.0, 90.0, 0.0)
+    work_frame: Tuple[float, ...] = (150.0, 500.0, 500.0, 0.0, 90.0, 90.0)
     home_pose: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  # work-frame (x y z roll pitch yaw) in mm/deg
     linear_speed: float = 500.0      # mm/s
     angular_speed: float = 20.0      # deg/s

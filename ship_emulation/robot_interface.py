@@ -59,6 +59,34 @@ class UR16Interface:
         self._robot.move_linear(self._config.home_pose)
         log.info("At home position")
 
+    def servo_linear_velocity(
+        self,
+        velocity: Tuple[float, ...],
+        accel: float,
+        return_time: float,
+    ) -> None:
+        """Stream one Cartesian velocity segment via speedL.
+
+        Returns almost immediately — the robot executes the velocity on a
+        background thread for return_time seconds.  The next call joins that
+        thread first, so consecutive calls produce gapless back-to-back motion.
+
+        velocity = (vx, vy, vz, v_roll, v_pitch, v_yaw)  mm/s and deg/s
+        accel    = linear acceleration  mm/s²
+        return_time = segment duration  s
+        """
+        if self._motion_pending:
+            self._robot.async_result()
+            self._motion_pending = False
+        self._controller.move_linear_velocity(velocity, accel, return_time)
+
+    def stop_linear(self, linear_accel: float = 2000.0) -> None:
+        """Decelerate TCP smoothly to rest.  Does not close the connection."""
+        if self._motion_pending:
+            self._robot.async_result()
+            self._motion_pending = False
+        self._controller.stop_linear_velocity(linear_accel)
+
     def move_linear_at(
         self,
         pose: Tuple[float, ...],

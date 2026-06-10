@@ -95,15 +95,33 @@ class ShipEmulator:
                     time.sleep(sleep_s)
 
                 if not self._interface.is_motion_done():
-                    late_count += 1
-                    lateness_ms = (time.monotonic() - target_wall) * 1000.0
-                    sim_t = pose.timestamp - sim_origin
-                    log.warning(
-                        "pose %d  sim_t=%.3fs  late=%.1fms  "
-                        "target=(x=%.2f y=%.2f z=%.2f roll=%.3f pitch=%.3f yaw=%.3f)",
-                        pose_count, sim_t, lateness_ms, *pose.as_robot_pose(),
-                    )
                     self._interface.wait_for_motion()
+                    now = time.monotonic()
+                    if now > target_wall:
+                        sim_t = pose.timestamp - sim_origin
+                        lateness_ms = (now - target_wall) * 1000.0
+                        n_skip = 0
+                        while target_wall < time.monotonic():
+                            nxt = next(pose_iter, None)
+                            if nxt is None:
+                                pose = None
+                                break
+                            n_skip += 1
+                            pose = nxt
+                            target_wall = wall_origin + (pose.timestamp - sim_origin)
+                        late_count += 1
+                        log.warning(
+                            "pose %d  sim_t=%.3fs  late=%.1fms  skipped %d stale pose(s)",
+                            pose_count, sim_t, lateness_ms, n_skip,
+                        )
+                        if pose is None:
+                            break
+                        try:
+                            self._safety.check(pose)
+                        except SafetyViolation as e:
+                            log.error("Safety violation on catch-up pose: %s", e)
+                            self._interface.emergency_stop()
+                            raise EmulationError(f"Safety violation: {e}") from e
 
                 self._interface.move_to(pose.as_robot_pose())
                 if self._on_move is not None:
