@@ -14,13 +14,20 @@ Topics
     /robot/cmd_pose    — geometry_msgs/PoseStamped  commanded pose (work frame, m)
     /robot/actual_pose — geometry_msgs/PoseStamped  actual FK pose (work frame, m)
 
-Both topics use the same unit conventions:
+Both topics express poses in the **robot work frame** (i.e. the frame whose
+origin and orientation are defined by RobotConfig.work_frame relative to the
+robot base).  They are NOT in the robot base frame.
+
+Unit conventions:
     position  : metres  (converted from mm internally)
     orientation: quaternion derived from intrinsic-XYZ Euler angles in degrees,
                  matching the cri / ShipPose convention.
 
-The frame_id encodes <experiment>/<context> so poses from different axes or
-levels are distinguishable in the bag without extra metadata topics.
+frame_id format: <coord_frame>/<experiment>[/<context>]
+    coord_frame : name of the coordinate frame the pose is expressed in
+                  (default "work_frame" — set via RosBridge(coord_frame=...))
+    experiment  : node/experiment label passed to RosBridge()
+    context     : optional sub-label set via set_context(), e.g. "level_1/shear-x"
 
 Degrades silently if rclpy is not importable (no-op publishes).
 """
@@ -72,10 +79,11 @@ class RosBridge:
     CMD_TOPIC    = "/robot/cmd_pose"
     ACTUAL_TOPIC = "/robot/actual_pose"
 
-    def __init__(self, experiment: str = "robot"):
-        self._experiment = experiment
-        self._context    = ""
-        self._available  = _HAS_ROS2
+    def __init__(self, experiment: str = "robot", coord_frame: str = "work_frame"):
+        self._experiment   = experiment
+        self._coord_frame  = coord_frame
+        self._context      = ""
+        self._available    = _HAS_ROS2
 
         if not _HAS_ROS2:
             log.warning("rclpy not available — RosBridge is a no-op")
@@ -104,7 +112,7 @@ class RosBridge:
         self._context = context
 
     def _frame_id(self) -> str:
-        parts = [self._experiment, self._context]
+        parts = [self._coord_frame, self._experiment, self._context]
         return "/".join(p for p in parts if p)
 
     # ── publishing ────────────────────────────────────────────────────────────

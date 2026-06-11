@@ -15,10 +15,10 @@ class RTDEClient:
     """
     class RTDEProtocolNotSupported(RuntimeError):
         pass
-    
+
     class RTDESyncFailedToStart(RuntimeError):
         pass
-    
+
     def __init__(self, ip='164.11.72.164'):
         self.set_units('millimeters', 'degrees')
         self.connect(ip, port=30004)
@@ -36,8 +36,7 @@ class RTDEClient:
         self.close()
 
     def _wait_for_command_complete(self):
-        """Handles command completion handshaking with server.
-        """
+        """Handles command completion handshaking with server."""
         # wait for command complete signal from server
         self._state = self._con.receive()
         command_status = self._state.output_int_register_0
@@ -444,6 +443,13 @@ class RTDEClient:
         linear_speed[:3] /= self._scale_linear
         linear_speed[3:] /= self._scale_angle
         return linear_speed
+
+    def get_runtime_state(self):
+        """Returns the URScript program runtime state.
+
+        0 = Stopping, 1 = Stopped, 2 = Playing, 3 = Paused
+        """
+        return self._state.runtime_state
 
     def get_info(self):
         """Returns a unique robot identifier string.

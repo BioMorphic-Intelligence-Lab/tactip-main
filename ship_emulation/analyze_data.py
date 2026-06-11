@@ -5,6 +5,9 @@ Usage:
     python -m ship_emulation.analyze_data
     python -m ship_emulation.analyze_data --csv path/to/other.csv
 
+    # Analyse only a 180 s window starting at t=2184 s (e.g. the phase2 emulation window):
+    python -m ship_emulation.analyze_data --start-time 2184 --duration 180
+
     # Preview augmented data (m→mm, 5× angular scale, 10 deg roll overlay at 0.1 Hz):
     python -m ship_emulation.analyze_data --linear-scale 1000 --angular-scale 5 \
         --overlay-roll-amp 10 --overlay-roll-freq 0.1
@@ -40,7 +43,20 @@ def load(path: Path):
     return {col: np.array([r[col] for r in rows]) for col in rows[0]}
 
 
-def apply_augmentation(data, linear_scale, angular_scale, overlay):
+def slice_window(data, t_start, duration):
+    """Return a copy of data restricted to [t_start, t_start + duration]."""
+    t = data[TIME_COL]
+    t_end = t_start + duration
+    mask = (t >= t_start) & (t <= t_end)
+    if not mask.any():
+        raise ValueError(
+            f"No samples in [{t_start:.3f}, {t_end:.3f}] s "
+            f"(data spans [{t[0]:.3f}, {t[-1]:.3f}] s)"
+        )
+    return {col: arr[mask] for col, arr in data.items()}
+
+
+def apply_augmentation(data, linear_scale, angular_scale, overlay, fade_in_duration=0.0):
     data = dict(data)
     for col in POSITION_COLS:
         data[col] = data[col] * linear_scale
@@ -48,6 +64,16 @@ def apply_augmentation(data, linear_scale, angular_scale, overlay):
         data[col] = data[col] * angular_scale
     if overlay is not None:
         t = data[TIME_COL]
+        # Raised-cosine envelope matching SinusoidalOverlaySource — ramps from 0 to 1.
+        if fade_in_duration > 0.0:
+            tau = t - t[0]
+            envelope = np.where(
+                tau < fade_in_duration,
+                0.5 * (1.0 - np.cos(np.pi * tau / fade_in_duration)),
+                1.0,
+            )
+        else:
+            envelope = 1.0
         amps_freqs = [
             ("rotation_x", overlay["roll_amp"], overlay["roll_freq"]),
             ("rotation_y", overlay["pitch_amp"], overlay["pitch_freq"]),
@@ -55,7 +81,7 @@ def apply_augmentation(data, linear_scale, angular_scale, overlay):
         ]
         for col, amp, freq in amps_freqs:
             if amp != 0.0:
-                data[col] = data[col] + amp * np.sin(2 * math.pi * freq * t)
+                data[col] = data[col] + envelope * amp * np.sin(2 * math.pi * freq * t)
     return data
 
 
@@ -323,6 +349,10 @@ def plot_psd(psd_results, fs, lpf_cutoff=None, save_path=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Inspect vessel motion CSV data.")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV, metavar="FILE")
+    parser.add_argument("--start-time", type=float, default=None, metavar="S",
+                        help="Start of analysis window in CSV time [s] (default: beginning of file)")
+    parser.add_argument("--duration", type=float, default=None, metavar="S",
+                        help="Length of analysis window [s] (default: to end of file)")
     parser.add_argument("--save", type=Path, default=None, metavar="OUT.png",
                         help="Save plot to file instead of showing interactively")
     parser.add_argument("--linear-scale", type=float, default=1.0, metavar="FACTOR",
@@ -335,6 +365,9 @@ def main(argv=None):
     parser.add_argument("--overlay-pitch-freq", type=float, default=0.1, metavar="HZ")
     parser.add_argument("--overlay-yaw-amp", type=float, default=0.0, metavar="DEG")
     parser.add_argument("--overlay-yaw-freq", type=float, default=0.1, metavar="HZ")
+    parser.add_argument("--fade-in-duration", type=float, default=0.0, metavar="S",
+                        help="Apply the same raised-cosine fade-in ramp to the overlay as "
+                             "SinusoidalOverlaySource does (match phase2 FADE_IN_DURATION)")
     parser.add_argument("--smooth-linear", type=float, default=0.0, metavar="S",
                         help="Spline smoothing factor for linear channels in mm² (0 = disabled)")
     parser.add_argument("--smooth-angular", type=float, default=0.0, metavar="S",
@@ -379,11 +412,26 @@ def main(argv=None):
             parts.append(f"pitch {args.overlay_pitch_amp}°@{args.overlay_pitch_freq}Hz")
         if args.overlay_yaw_amp:
             parts.append(f"yaw {args.overlay_yaw_amp}°@{args.overlay_yaw_freq}Hz")
+        if args.fade_in_duration > 0.0:
+            parts.append(f"fade {args.fade_in_duration:.0f}s")
         title_parts.append("overlay: " + ", ".join(parts))
 
     print(f"Loading {args.csv} ...")
     data = load(args.csv)
-    data = apply_augmentation(data, args.linear_scale, args.angular_scale, overlay)
+
+    if args.start_time is not None or args.duration is not None:
+        t_all = data[TIME_COL]
+        t_start = args.start_time if args.start_time is not None else float(t_all[0])
+        duration = args.duration if args.duration is not None else float(t_all[-1]) - t_start
+        try:
+            data = slice_window(data, t_start, duration)
+        except ValueError as e:
+            sys.exit(str(e))
+        title_parts.append(f"t={t_start:.1f}s + {duration:.1f}s")
+        print(f"Window: t={t_start:.3f} s → {t_start + duration:.3f} s  ({len(data[TIME_COL])} samples)")
+
+    data = apply_augmentation(data, args.linear_scale, args.angular_scale, overlay,
+                              fade_in_duration=args.fade_in_duration)
 
     has_offset = any(v != 0.0 for v in (args.offset_x, args.offset_y, args.offset_z))
     if has_offset:
@@ -413,23 +461,28 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main([
+    import sys as _sys
+    _DEFAULTS = [
         "--csv", "ship_emulation/1_vessel_motion_com_1m_translated.csv",
-        #"--linear-scale", "0.5", # meter to mm
-        #"--angular-scale", "0.5",
+        #"--start-time", "2184",   # analyse the phase-2 emulation window
+        #"--duration",   "180",
+        #"--linear-scale", "1000", # m → mm
+        #"--angular-scale", "1.0",
         #"--offset-x", "0.0", # forward of COG (bow direction, total length 103 m)
         #"--offset-y", "8.0", # side of ship (beam direction, total 16 m)
         #"--offset-z", "8.0", # vertical offset (total height of ship, 16 m, draft 6.7 m)
-        # "--overlay-roll-amp", "0.0",
-        # "--overlay-roll-freq", "0.0",
-        # "--overlay-pitch-amp", "0.0",
-        # "--overlay-pitch-freq", "0.0",
+        # "--overlay-roll-amp", "10.0",
+        # "--overlay-roll-freq", "0.1",
+        # "--overlay-pitch-amp", "15.0",
+        # "--overlay-pitch-freq", "0.07",
         # "--overlay-yaw-amp", "0.0",
-        # "--overlay-yaw-freq", "0.0",
+        # "--overlay-yaw-freq", "0.1",
+        # "--fade-in-duration", "10",   # match phase2 FADE_IN_DURATION
         # "--smooth-linear", "0.0", # 0 removes smoothing
         # "--fourier",
         # "--lpf-cutoff", "0.5",
         # "--smooth-angular", "1e2",
         # "--save", "vessel_motion.png",
         # "--save-fourier", "vessel_motion_psd.png",
-    ])
+    ]
+    main(_sys.argv[1:] or _DEFAULTS)

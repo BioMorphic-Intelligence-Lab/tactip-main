@@ -3,6 +3,8 @@ import signal
 import time
 from typing import List
 
+from cri.ur.rtde_client import RTDEClient
+
 from ship_emulation.config import EmulatorConfig
 from ship_emulation.data_source import DataSource, ShipPose
 from ship_emulation.robot_interface import UR16Interface
@@ -160,6 +162,7 @@ def servo_run(
     on_move,
     servo_accel: float,
     speed_factor: float = 1.0,
+    pose_stride: int = 1,
 ) -> bool:
     """Stream Cartesian velocities derived from a pose list via speedL.
 
@@ -172,6 +175,13 @@ def servo_run(
     speed_factor < 1 slows playback proportionally (velocity × speed_factor,
     segment duration ÷ speed_factor).  The safety pre-check always runs at
     the original 1× rates, so it remains conservative at any slower speed.
+
+    pose_stride > 1 uses every Nth pose, increasing the segment duration by N×
+    while keeping the same real-time velocities.  This trades trajectory
+    temporal resolution for a more stable RTDE round-trip budget.  A stride of
+    5 on 10 Hz CSV data gives 0.5 s segments, which is reliably stable with the
+    command/ACK URScript protocol.  The safety pre-check still runs on ALL
+    poses regardless of stride.
 
     Returns True on clean completion, False if interrupted by Ctrl+C.
     Raises EmulationError on safety violation.
@@ -191,19 +201,37 @@ def servo_run(
         except SafetyViolation as e:
             raise EmulationError(f"Safety violation in planned trajectory: {e}") from e
 
+    # Stride the pose list to increase segment duration and stabilise the
+    # RTDE round-trip budget.  Always include the final pose so the endpoint
+    # is reached exactly.
+    if pose_stride > 1:
+        strided = poses[::pose_stride]
+        if strided[-1] is not poses[-1]:
+            strided = strided + [poses[-1]]
+        poses = strided
+        log.info(
+            "Pose stride %d: %d poses → %d segments  (dt ~%.2f s per segment)",
+            pose_stride, len(poses), len(poses) - 1,
+            (poses[-1].timestamp - poses[0].timestamp) / (len(poses) - 1) if len(poses) > 1 else 0.0,
+        )
+
     log.info("Moving to first trajectory pose ...")
     interface.move_linear_at(poses[0].as_robot_pose(), 100.0, 5.0)
     interface.wait_until_stopped()
 
     stop_requested = False
 
+    orig_sigint  = signal.getsignal(signal.SIGINT)
+    orig_sigterm = signal.getsignal(signal.SIGTERM)
+
     def _handle(sig, frame):
         nonlocal stop_requested
         stop_requested = True
+        # Disarm immediately so subsequent Ctrl+C presses don't interrupt cleanup.
+        signal.signal(signal.SIGINT, orig_sigint)
+        signal.signal(signal.SIGTERM, orig_sigterm)
         raise KeyboardInterrupt
 
-    orig_sigint  = signal.getsignal(signal.SIGINT)
-    orig_sigterm = signal.getsignal(signal.SIGTERM)
     signal.signal(signal.SIGINT, _handle)
     signal.signal(signal.SIGTERM, _handle)
 
@@ -243,6 +271,9 @@ def servo_run(
                 progress = i / n_total
                 eta      = elapsed / progress * (1.0 - progress) if progress > 0 else 0.0
                 tcp      = interface.current_pose
+                rs       = interface.runtime_state
+                _RS_NAMES = {0: "Stopping", 1: "Stopped", 2: "Playing", 3: "Paused"}
+                rs_str   = _RS_NAMES.get(rs, f"Unknown({rs})")
                 if tcp is not None:
                     pos_str = (
                         f"x={tcp[0]:+.0f}  y={tcp[1]:+.0f}  z={tcp[2]:+.0f} mm  "
@@ -251,9 +282,14 @@ def servo_run(
                 else:
                     pos_str = "unavailable"
                 log.info(
-                    "t=+%.0fs  %.0f%%  ETA ~%.0fs  |  %s",
-                    elapsed, progress * 100, eta, pos_str,
+                    "t=+%.0fs  %.0f%%  ETA ~%.0fs  runtime=%s  |  %s",
+                    elapsed, progress * 100, eta, rs_str, pos_str,
                 )
+                if rs != 2:
+                    raise EmulationError(
+                        f"URScript program no longer Playing at t=+{elapsed:.1f}s "
+                        f"segment={i}  runtime_state={rs_str}"
+                    )
                 t_last_fb = now
 
             # ── Send velocity segment ─────────────────────────────────────────
@@ -262,7 +298,21 @@ def servo_run(
             dt_streamed = dt_orig / speed_factor
             r0, r1      = p0.as_robot_pose(), p1.as_robot_pose()
             velocity    = tuple((r1[j] - r0[j]) / dt_streamed for j in range(6))
-            interface.servo_linear_velocity(velocity, servo_accel, dt_streamed)
+            t_seg_start = time.monotonic()
+            try:
+                interface.servo_linear_velocity(velocity, servo_accel, dt_streamed)
+            except RTDEClient.RTDECommandTimeout as e:
+                elapsed  = time.monotonic() - t_start
+                hang_s   = time.monotonic() - t_seg_start
+                csv_t    = p0.timestamp
+                log.error(
+                    "RTDE command timeout at segment %d  t=+%.1fs  csv_t=%.3f s  "
+                    "hang=%.1f s  v=(%.1f, %.1f, %.1f, %.1f, %.1f, %.1f) mm/s·deg/s  "
+                    "dt_streamed=%.3f s: %s",
+                    i, elapsed, csv_t,
+                    hang_s, *velocity, dt_streamed, e,
+                )
+                raise EmulationError(f"RTDE command timeout at segment {i}: {e}") from e
             if on_move is not None:
                 on_move(p1)
             n_segments += 1

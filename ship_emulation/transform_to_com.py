@@ -44,7 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
 INPUT_CSV  = "ship_emulation/1_vessel_motion_com_1m.csv"
-OUTPUT_CSV = "ship_emulation/1_vessel_motion_com_1m_translated.csv"
+OUTPUT_CSV = "ship_emulation/1_vessel_motion_com_1m_translated_2.csv"
 
 # Vector from the ship COM to the measurement point P (i.e. where P sits in
 # the body frame relative to the COM), expressed at rest.
@@ -71,11 +71,11 @@ FRAME_ROTATION = (-90.0, 0.0, 0.0)   # (rx, ry, rz) in degrees
 # other processing.  Use 1000.0 to convert metres → millimetres so the output
 # CSV is ready for direct use with robot interfaces that expect mm.
 # Set to 1.0 to leave units unchanged.
-LINEAR_SCALE = 0.5
+LINEAR_SCALE = 1.0
 
 # Multiplicative scale applied to the angular (orientation) channels after all
 # other processing.  Set to 1.0 to leave units unchanged.
-ANGULAR_SCALE = 0.5
+ANGULAR_SCALE = 1.0
 
 # ── END CONFIGURATION ─────────────────────────────────────────────────────────
 

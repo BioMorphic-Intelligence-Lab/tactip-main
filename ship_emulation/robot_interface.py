@@ -181,3 +181,11 @@ class UR16Interface:
     @property
     def current_joint_angles(self):
         return self._robot.joint_angles if self._robot else None
+
+    @property
+    def runtime_state(self) -> int:
+        """URScript program state: 0=Stopping 1=Stopped 2=Playing 3=Paused."""
+        try:
+            return self._controller._client.get_runtime_state()
+        except Exception:
+            return -1

@@ -6,10 +6,10 @@ from typing import Optional, Tuple
 class WorkspaceLimits:
     x_min: float = -400.0
     x_max: float = 700.0
-    y_min: float = -550.0
-    y_max: float = 550.0
-    z_min: float = -300.0
-    z_max: float = 300.0
+    y_min: float = -950.0
+    y_max: float = 950.0
+    z_min: float = -310.0
+    z_max: float = 310.0
     roll_min: float = -90.0
     roll_max: float = 90.0
     pitch_min: float = -90.0

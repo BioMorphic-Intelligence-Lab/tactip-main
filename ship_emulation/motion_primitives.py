@@ -21,6 +21,7 @@ from typing import Iterator, Sequence
 
 log = logging.getLogger(__name__)
 
+from ship_emulation.config import SinusoidalOverlay
 from ship_emulation.data_source import DataSource, ShipPose
 
 AXES = ('x', 'y', 'z', 'roll', 'pitch', 'yaw')
@@ -378,6 +379,66 @@ class FadeInSource(DataSource):
                 roll=p0.roll + envelope * (pose.roll - p0.roll),
                 pitch=p0.pitch + envelope * (pose.pitch - p0.pitch),
                 yaw=p0.yaw + envelope * (pose.yaw - p0.yaw),
+            )
+
+    def close(self):
+        self._source.close()
+
+
+class SinusoidalOverlaySource(DataSource):
+    """Add sinusoidal roll/pitch/yaw overlays on top of any DataSource.
+
+    The overlay amplitude is scaled by the same raised-cosine envelope used by
+    FadeInSource, so the added signal grows smoothly from zero over
+    ``fade_duration`` seconds rather than switching on at its arbitrary initial
+    phase.  Set ``fade_enabled=False`` to apply the overlay at full amplitude
+    from the first sample.
+
+    Args:
+        source:        underlying DataSource to wrap
+        overlay:       SinusoidalOverlay configuration (amplitudes and frequencies)
+        fade_duration: ramp-up duration [s] (default 0.0 → no ramp)
+        fade_enabled:  False → full amplitude from t=0
+    """
+
+    def __init__(
+        self,
+        source: DataSource,
+        overlay: SinusoidalOverlay,
+        fade_duration: float = 0.0,
+        fade_enabled: bool = True,
+    ):
+        self._source = source
+        self._overlay = overlay
+        self._fade_duration = fade_duration
+        self._fade_enabled = fade_enabled
+
+    def poses(self) -> Iterator[ShipPose]:
+        ov = self._overlay
+        t0: float | None = None
+
+        for pose in self._source.poses():
+            if t0 is None:
+                t0 = pose.timestamp
+
+            if self._fade_enabled and self._fade_duration > 0.0:
+                tau = pose.timestamp - t0
+                if tau < self._fade_duration:
+                    envelope = 0.5 * (1.0 - math.cos(math.pi * tau / self._fade_duration))
+                else:
+                    envelope = 1.0
+            else:
+                envelope = 1.0
+
+            t = pose.timestamp
+            yield ShipPose(
+                timestamp=t,
+                x=pose.x,
+                y=pose.y,
+                z=pose.z,
+                roll=pose.roll + envelope * ov.roll_amplitude * math.sin(2.0 * math.pi * ov.roll_frequency * t),
+                pitch=pose.pitch + envelope * ov.pitch_amplitude * math.sin(2.0 * math.pi * ov.pitch_frequency * t),
+                yaw=pose.yaw + envelope * ov.yaw_amplitude * math.sin(2.0 * math.pi * ov.yaw_frequency * t),
             )
 
     def close(self):
