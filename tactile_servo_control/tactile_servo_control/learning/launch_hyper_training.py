@@ -264,7 +264,7 @@ if __name__ == "__main__":
         # "target_weights_7": hp.uniform(label="target_weights_7", low=0.5, high=1.5),
         # "target_weights_8": hp.uniform(label="target_weights_8", low=0.5, high=1.5),
         "activation": hp.choice(label="activation", options=('relu', 'elu')),
-        "conv_layers": hp.choice(label="conv_layers", options=([8,]*4, [16,]*4, [32,]*4, [64,]*4, [128,]*4, [256,]*4)),
+        "conv_layers": hp.choice(label="conv_layers", options=([8,]*4, [16,]*4, [32,]*4, [64,]*4)),
         "conv_kernel_sizes": hp.choice(label="conv_kernel_sizes", options=([5,]*4, [7,]*4, [9,]*4, [11,]*4, [11, 9, 7, 5], [13, 11, 9, 7])),
         "fc_layers": hp.choice(label="fc_layers", options=([128,]*2, [256,]*2, [512,]*2, [1024,]*2, [2048,]*2, [512, 1024], [1024, 512], [1024, 2048], [2048, 1024])),
         "dropout": hp.uniform(label="dropout", low=0, high=0.5),

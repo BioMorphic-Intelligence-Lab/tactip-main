@@ -19,7 +19,7 @@ class RTDEClient:
     class RTDESyncFailedToStart(RuntimeError):
         pass
 
-    def __init__(self, ip='164.11.72.164'):
+    def __init__(self, ip='192.168.56.101'):
         self.set_units('millimeters', 'degrees')
         self.connect(ip, port=30004)
 

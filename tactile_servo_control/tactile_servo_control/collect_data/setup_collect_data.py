@@ -6,21 +6,24 @@ BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
-    "ur_tactip":    (70, 0, 550, 480), # Set resolution to final intended resolution
+    "ur_tactip":    (100, 20, 540, 460), # Set resolution to final intended resolution
+    "ur_aerial-A1":    (100, 20, 540, 460), # Set resolution to final intended resolution
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
     "abb_tactip":   140,
     "cr_tactip":    210,
     "mg400_tactip": None,
-    "ur_tactip":    270,
+    "ur_tactip":    230,
+    "ur_aerial-A1": 230,
     "sim_tactip":   240
 }
 THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
-    "ur_tactip":    [61, -11], # Determined using tune_images.py in tactile_image_processing
+    "ur_tactip":    [121, -11], # Determined using tune_images.py in tactile_image_processing
+    "ur_aerial-A1": [121, -11], # Same as ur tactip for now, but may need adjustment
     "sim_tactip":   None
 }
 
@@ -33,6 +36,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
         'aerial-A3': (80, 15, 520, 455),
         'aerial-A2': (0, 0, 640, 480),
         'aerial-B2': (0, 0, 640, 480),
+        'aerial-A1': (0, 0, 640, 480),
         'aerial-nobb': (0, 0, 640, 480)
     }
     sensor_type = sensor  # TODO: Fix hardcoded sensor type
@@ -47,7 +51,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     else:
         sensor_image_params = {
             'type': sensor_type,
-            'source': 4, # Change here to use different cameras, 0 for default cam, 4 for usb
+            'source': 5, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
             'bbox': bbox_dict[sensor_type]
@@ -66,7 +70,8 @@ def setup_collect_params(robot, task, save_dir=None):
 
     # [min, max] for each dimension
     pose_lims_dict = {
-        'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3, 25, 25,   0)],
+        'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3.5, 25, 25,   0)],
+        'surface_5d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3.5, 25, 25,   0)],
         'edge_2d':    [(-5, 0, 3,   0,   0, -180), (5, 0, 4,  0,  0, 180)],
         'edge_3d':    [(-5, 0, 1,   0,   0, -180), (5, 0, 5,  0,  0, 180)],
         'edge_5d':    [(-5, 0, 1, -25, -25, -180), (5, 0, 5, 25, 25, 180)],
@@ -75,12 +80,13 @@ def setup_collect_params(robot, task, save_dir=None):
     shear_lims_dict = {
         'cr':      [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
         'mg400':   [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
-        'ur':      [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
+        'ur':      [(-3, -3, 0, 0, 0, -3), (3, 3, 0, 0, 0, 3)], # Reduced shear range for aerial tactip
         'sim':     [(0, 0, 0, 0, 0, 0),    (0, 0, 0, 0, 0, 0)],
     }
 
     object_poses_dict = {
         'surface_3d': {'surface': (0, 0, 0, 0, 0, 0)},
+        'surface_5d': {'surface': (0, 0, 0, 0, 0, 0)},
         'edge_2d':    {'edge': (0, 0, 0, 0, 0, 0)},
         'edge_3d':    {'edge': (0, 0, 0, 0, 0, 0)},
         'edge_5d':    {'edge': (0, 0, 0, 0, 0, 0)},
@@ -115,7 +121,7 @@ def setup_env_params(robot, save_dir=None):
     work_frame_dict = {
         'cr':    (20, -475, 100, -180, 0, 90),
         'mg400': (285,  0, 0, -180, 0, 0),
-        'ur':    (571, -127, -286, 180, 0, 0),
+        'ur':    (600, -138, -394.5, 180, 0, 0),
         'sim':   (650, 0, 50, -180, 0, 0),
     } # 180 deg rotation around x or y because z points out of tool flange and is positive up in base frame
 
@@ -124,7 +130,7 @@ def setup_env_params(robot, save_dir=None):
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
-        'ur':    (0, 0, -75.2, 0, 0, 0),
+        'ur':    (0, 0, -86.4, 0, 0, 0),
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
 

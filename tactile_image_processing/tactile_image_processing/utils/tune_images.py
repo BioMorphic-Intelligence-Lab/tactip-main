@@ -21,7 +21,7 @@ def setup_sensor(exp=-7):
     
     sensor_image_params = {
         'type': sensor_type,
-        'source': 4,
+        'source': 5,
         'exposure': exp,
         'gray': True,
         'bbox': bbox_dict[sensor_type]

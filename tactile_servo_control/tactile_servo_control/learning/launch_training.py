@@ -32,9 +32,6 @@ def launch(args):
         # this way you can specify either surface_3d or surface_6d with only surface_3d data
         if args.task == 'surface_6d':
             task_for_dir_name = 'surface_9d'
-        elif args.task == 'surface_5d':
-            task_for_dir_name = 'surface_9d'
-            args.task = 'surface_5d'
         elif args.task == 'surface_9d':
             task_for_dir_name = 'surface_9d'
             args.task = 'surface_3d'
@@ -130,11 +127,11 @@ if __name__ == "__main__":
     args = parse_args(
         robot='sim',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_5d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
-        model_version=['A3_2025'],
+        model_version=['A1_2026'],
         device='cuda'
     )
     

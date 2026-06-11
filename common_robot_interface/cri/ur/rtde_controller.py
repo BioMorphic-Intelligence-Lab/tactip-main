@@ -17,7 +17,7 @@ class RTDEController(RobotController):
     and quaternion rotations.  This format makes it easy to perform
     coordinate transformations.
     """
-    def __init__(self, ip='172.17.0.2'):
+    def __init__(self, ip='192.168.56.101'):
         self._ip = ip
         self._client = RTDEClient(ip)        
         try:   

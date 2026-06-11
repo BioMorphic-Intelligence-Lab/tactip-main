@@ -18,6 +18,7 @@ Edit the CONFIGURATION block below, then run:
 Press Ctrl+C at any time to abort safely.
 """
 import logging
+import math
 import sys
 from pathlib import Path
 
@@ -42,7 +43,8 @@ BLEND_RADIUS = 3.0  # mm
 
 # DoF order: Rx (roll), Ry (pitch), shear-x, shear-y, depth-z.  Remove any to skip.
 #AXES = ["roll", "pitch", "x", "y", "z"]
-AXES = ["x", "y", "z"]
+#AXES = ["x", "y", "z"]
+AXES = ["pitch", "roll"]
 
 # Sweep start and end positions per axis [mm for linear, deg for angular].
 # The robot alternates between SWEEP_START and SWEEP_END for TRAP_N_CYCLES sweeps.
@@ -75,12 +77,12 @@ TRAP_ACCELERATION = {
 # Each level runs all DoFs before moving to the next.
 # Angular: deg/s, linear: mm/s.
 TRAP_VELOCITIES = [
-    {"roll": 3.0,  "pitch": 3.0,  "x":  100.0, "y":  100.0, "z":   50.0},
-    {"roll": 5.0,  "pitch": 5.0,  "x":  300.0, "y":  300.0, "z":   150.0},
-    {"roll": 10.0, "pitch": 10.0, "x":  600.0, "y":  600.0, "z":   300.0},
+    {"roll": 5.0,  "pitch": 5.0,  "x":  100.0, "y":  100.0, "z":   50.0},
+    {"roll": 10.0,  "pitch": 10.0,  "x":  300.0, "y":  300.0, "z":   150.0},
+    {"roll": 15.0, "pitch": 15.0, "x":  600.0, "y":  600.0, "z":   300.0},
 ]
 
-TRAP_N_CYCLES = 6   # one-way sweeps per DoF per level
+TRAP_N_CYCLES = 4   # one-way sweeps per DoF per level
 
 # Speed for the slow approach from home (0) to sweep start position (−A).
 # Applies to roll, pitch, x, y only. Keep well below lowest TRAP_VELOCITIES.
@@ -119,8 +121,24 @@ _AXIS_POSE_IDX = {"x": 0, "y": 1, "z": 2, "roll": 3, "pitch": 4, "yaw": 5}
 # Speeds used for ALL slow positioning moves — both the initial approach from home
 # and direct inter-axis transitions.  Derived from APPROACH_VELOCITY so there is
 # one place to tune them.
+#
+# movel only accepts a single speed parameter (v, in m/s = rad/s for pure rotations).
+# angular_speed is only used by movej and has no effect on movel.  For pure-rotation
+# approaches (roll, pitch) the robot treats v as rad/s, so the angular limit must be
+# expressed in the same units: deg/s → rad/s → m/s → mm/s.
 _TRANSITION_LINEAR_SPEED  = min(APPROACH_VELOCITY[a] for a in ("x", "y"))        # mm/s
 _TRANSITION_ANGULAR_SPEED = min(APPROACH_VELOCITY[a] for a in ("roll", "pitch"))  # deg/s
+_TRANSITION_ANGULAR_AS_LINEAR = _TRANSITION_ANGULAR_SPEED * math.pi / 180 * 1000  # mm/s equiv for movel
+
+
+def _approach_speed(axis: str) -> float:
+    """Return the movel speed (mm/s) for a slow approach along the given axis.
+
+    For angular axes movel's v parameter is interpreted as rad/s, so convert.
+    """
+    if axis in ("roll", "pitch"):
+        return _TRANSITION_ANGULAR_AS_LINEAR
+    return APPROACH_VELOCITY[axis]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -296,13 +314,13 @@ def main() -> int:
                     # In both cases we move directly to this axis's start pose.
                     _enter(
                         f"\nAbout to move slowly to start position ({start_str}).\n"
-                        f"Speed: {_TRANSITION_LINEAR_SPEED} mm/s  /  "
+                        f"Speed: {_approach_speed(axis):.2f} mm/s  /  "
                         f"{_TRANSITION_ANGULAR_SPEED} deg/s\n"
                         f"Press ENTER to begin, or Ctrl+C to abort."
                     )
                     log.info("Moving slowly to start position for %s level %d ...", label, level_num)
                     interface.move_linear_at(
-                        start, _TRANSITION_LINEAR_SPEED, _TRANSITION_ANGULAR_SPEED
+                        start, _approach_speed(axis), _TRANSITION_ANGULAR_SPEED
                     )
                     interface.wait_until_stopped()
 

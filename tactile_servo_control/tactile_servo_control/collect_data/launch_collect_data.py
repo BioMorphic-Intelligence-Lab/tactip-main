@@ -74,9 +74,9 @@ if __name__ == "__main__":
     args = parse_args(
         robot='sim',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_5d'],
         data_dirs=['data'],
-        sample_nums=[4000]
+        sample_nums=[20]
     )
     launch(args)
 
