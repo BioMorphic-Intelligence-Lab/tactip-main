@@ -76,7 +76,7 @@ if __name__ == "__main__":
         sensor='tactip',
         tasks=['surface_5d'],
         data_dirs=['data'],
-        sample_nums=[20]
+        sample_nums=[3000]
     )
     launch(args)
 

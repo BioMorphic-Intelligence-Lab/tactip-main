@@ -51,7 +51,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     else:
         sensor_image_params = {
             'type': sensor_type,
-            'source': 5, # Change here to use different cameras, 0 for default cam, 4 for usb
+            'source': 4, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
             'bbox': bbox_dict[sensor_type]
@@ -130,7 +130,7 @@ def setup_env_params(robot, save_dir=None):
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
-        'ur':    (0, 0, -86.4, 0, 0, 0),
+        'ur':    (0, 0, -86.5, 0, 0, 0),
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
 
