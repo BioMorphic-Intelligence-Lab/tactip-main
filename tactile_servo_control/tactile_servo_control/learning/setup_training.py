@@ -15,7 +15,7 @@ def setup_learning(save_dir=None):
 
     learning_params = {
         'seed': 42,
-        'batch_size': 16,
+        'batch_size': 32,
         'epochs': 200,
         'lr': 1e-4,
         'lr_factor': 0.5,
@@ -24,7 +24,7 @@ def setup_learning(save_dir=None):
         'adam_b1': 0.9,
         'adam_b2': 0.999,
         'shuffle': True,
-        'n_cpu': 1,
+        'n_cpu': 4,
         'n_train_batches_per_epoch': None,
         'n_val_batches_per_epoch': None,
     }

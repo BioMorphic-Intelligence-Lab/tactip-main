@@ -38,7 +38,7 @@ ROBOT_IP = "192.168.56.101" # real
 #   3_vessel_motion_clean.csv
 CSV_FILE = "ship_emulation/1_vessel_motion_com_1m_translated.csv"
 
-WINDOW_DURATION = 180.0  # s — length of the sampled window (3 minutes)
+WINDOW_DURATION = 90.0  # s — length of the sampled window (3 minutes)
 RANDOM_SEED: Optional[int] = 42  # set to an int for reproducibility
 
 # Fix the window start time (seconds in the CSV).  When set to a float the
@@ -51,7 +51,7 @@ WINDOW_START: Optional[float] = None
 # executed at reduced velocity so singularities and self-collisions can be
 # spotted before a full-speed run.  The safety pre-check always runs at the
 # original (1.0×) rates, so it remains conservative at any slower speed.
-PLAYBACK_SPEED = 1.0
+PLAYBACK_SPEED = 0.4
 
 # Unit conversion applied to raw CSV columns
 LINEAR_SCALE  = 1000.0  # multiply x/y/z  (default: m → mm)

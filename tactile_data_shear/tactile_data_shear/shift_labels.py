@@ -9,6 +9,7 @@ BBOX = { # (x0, y0, x1, y1)
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
     "ur_tactip":    (60, 65, 410, 415), # We just use the full resolution and set it in bbox_dict below
+    "ur_aerial-A1": (100, 20, 540, 460), # We just use the full resolution and set it in bbox_dict below
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
@@ -16,6 +17,7 @@ CIRCLE_MASK_RADIUS = {
     "cr_tactip":    210,
     "mg400_tactip": None,
     "ur_tactip":    170,
+    "ur_aerial-A1": 230,
     "sim_tactip":   240
 }
 THRESH = {
@@ -23,6 +25,7 @@ THRESH = {
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
     "ur_tactip":    [61, -8.5], # Determined using tune_images.py in tactile_image_processing
+    "ur_aerial-A1": [121, -11.0], # We just use the same as ur_tactip for now, but it might need to be tuned
     "sim_tactip":   None
 }
 
@@ -140,7 +143,7 @@ def main(args, shift=1):
     full_data_path = os.path.join(BASE_DATA_PATH,args.robot+'_'+args.sensor, args.tasks[0], 'data')
     full_targets_path = os.path.join(full_data_path, 'targets.csv')
 
-    target_path = os.path.join(BASE_DATA_PATH, 'ur_tactip', 'surface_3d', 'data', 'targets.csv')
+    target_path = os.path.join(BASE_DATA_PATH, 'ur_aerial-A1', 'surface_5d', 'data', 'targets.csv')
 
     print(f"WARNING: This operation will modify data stored at {full_data_path}")
     print(f"Labels will be shifted by {shift} and the data will be reprocessed. Backing up original data is advised.")
@@ -174,6 +177,6 @@ if __name__ == "__main__":
             sensor='tactip',
             tasks=['surface_9d'],
             data_dirs=['data'],
-            sample_nums=[4000]
+            sample_nums=[3000]
         )
-    main(args, shift = 0)
+    main(args, shift = -4)

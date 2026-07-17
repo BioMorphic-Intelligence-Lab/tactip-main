@@ -51,7 +51,7 @@ WINDOW_START: Optional[float] = None
 # executed at reduced velocity so singularities and self-collisions can be
 # spotted before a full-speed run.  The safety pre-check always runs at the
 # original (1.0×) rates, so it remains conservative at any slower speed.
-PLAYBACK_SPEED = 1.0
+PLAYBACK_SPEED = 0.5
 
 # Unit conversion applied to raw CSV columns
 LINEAR_SCALE  = 1000.0  # multiply x/y/z  (default: m → mm)

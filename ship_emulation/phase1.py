@@ -43,24 +43,24 @@ BLEND_RADIUS = 3.0  # mm
 
 # DoF order: Rx (roll), Ry (pitch), shear-x, shear-y, depth-z.  Remove any to skip.
 #AXES = ["roll", "pitch", "x", "y", "z"]
-#AXES = ["x", "y", "z"]
-AXES = ["pitch", "roll"]
+AXES = ["y"]
+#AXES = ["roll"]
 
 # Sweep start and end positions per axis [mm for linear, deg for angular].
 # The robot alternates between SWEEP_START and SWEEP_END for TRAP_N_CYCLES sweeps.
 # An axis whose SWEEP_START is non-zero requires a slow approach from home.
 SWEEP_START = {
-    "roll":  -45.0,   # deg
+    "roll":  -25.0,   # deg
     "pitch": -45.0,   # deg
     "x":    -350.0,   # mm, y in base frame, this value is in work frame!
-    "y":    -500.0,   # mm, -z in base frame, this value is in work frame!
+    "y":    -300.0,   # mm, -z in base frame, this value is in work frame!
     "z":    -250.0,   # mm, -x in base frame, this value is in work frame!
 }
 SWEEP_END = {
-    "roll":   45.0,   # deg
+    "roll":   25.0,   # deg
     "pitch":  45.0,   # deg
     "x":     650.0,   # mm, y in base frame, this value is in work frame!
-    "y":     500.0,   # mm, -z in base frame, this value is in work frame!
+    "y":     300.0,   # mm, -z in base frame, this value is in work frame!
     "z":     250.0,   # mm, -x in base frame, this value is in work frame!
 }
 
@@ -68,8 +68,8 @@ SWEEP_END = {
 TRAP_ACCELERATION = {
     "roll":  15.0,   # deg/s²
     "pitch": 15.0,
-    "x":     500.0,  # mm/s²
-    "y":     500.0,
+    "x":     300.0,  # mm/s²
+    "y":     300.0,
     "z":     100.0,
 }
 
@@ -77,20 +77,21 @@ TRAP_ACCELERATION = {
 # Each level runs all DoFs before moving to the next.
 # Angular: deg/s, linear: mm/s.
 TRAP_VELOCITIES = [
-    {"roll": 5.0,  "pitch": 5.0,  "x":  100.0, "y":  100.0, "z":   50.0},
-    {"roll": 10.0,  "pitch": 10.0,  "x":  300.0, "y":  300.0, "z":   150.0},
-    {"roll": 15.0, "pitch": 15.0, "x":  600.0, "y":  600.0, "z":   300.0},
+    {"roll": 5.0,  "pitch": 15.0,  "x":  30.0, "y":  60.0, "z":   200.0},
+    #{"roll": 10.0,  "pitch": 15.0,  "x":  125.0, "y":  60.0, "z":   150.0},
+    #{"roll": 15.0, "pitch": 15.0, "x":  200.0, "y":  200.0, "z":   300.0},
 ]
 
 TRAP_N_CYCLES = 4   # one-way sweeps per DoF per level
 
 # Speed for the slow approach from home (0) to sweep start position (−A).
-# Applies to roll, pitch, x, y only. Keep well below lowest TRAP_VELOCITIES.
+# Keep well below lowest TRAP_VELOCITIES for each axis.
 APPROACH_VELOCITY = {
     "roll":  3.0,   # deg/s
     "pitch": 3.0,   # deg/s
-    "x":     50.0,   # mm/s
-    "y":     50.0,   # mm/s
+    "x":     25.0,  # mm/s
+    "y":     25.0,  # mm/s
+    "z":     25.0,  # mm/s
 }
 
 DWELL_SETTLE = 5.0   # s — pause between consecutive sweeps

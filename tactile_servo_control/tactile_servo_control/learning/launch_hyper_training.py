@@ -5,6 +5,7 @@ import os
 import copy
 import shutil
 import itertools as it
+import numpy as np
 import pandas as pd
 
 from functools import partial
@@ -154,6 +155,10 @@ def format_params(params):
         params_conv['conv_kernel_sizes'] = ('[5,]*4', '[7,]*4', '[9,]*4', '[11,]*4', '[11, 9, 7, 5]', '[13, 11, 9, 7]')[params['conv_kernel_sizes']]
     if 'fc_layers' in params_conv:
         params_conv['fc_layers'] = ('[128,]*2', '[256,]*2', '[512,]*2', '[1024,]*2', '[2048,]*2', '[512, 1024]', '[1024, 512]', '[1024, 2048]', '[2048, 1024]')[params['fc_layers']]
+    if 'apply_batchnorm' in params_conv:
+        params_conv['apply_batchnorm'] = (True, False)[params['apply_batchnorm']]
+    if 'lr_patience' in params_conv:
+        params_conv['lr_patience'] = (5, 10, 20)[params['lr_patience']]
     return params_conv
 
 
@@ -172,8 +177,8 @@ def launch(args, space, max_evals=20, n_startup_jobs=10):
 
         if args.task == 'surface_9d': # small hack to deal with pose and shear separation for surface task
             task_for_data_dir = 'surface_3d'
-        if args.task == 'surface_5d': # Just for the training of a 5D model on the 9D data
-            task_for_data_dir = 'surface_9d'
+        else:
+            task_for_data_dir = args.task
 
         # data dirs - list of directories combined in generator
         train_data_dirs = [
@@ -263,11 +268,14 @@ if __name__ == "__main__":
         # "target_weights_6": hp.uniform(label="target_weights_6", low=0.5, high=1.5),
         # "target_weights_7": hp.uniform(label="target_weights_7", low=0.5, high=1.5),
         # "target_weights_8": hp.uniform(label="target_weights_8", low=0.5, high=1.5),
+        "lr": hp.loguniform(label="lr", low=np.log(5e-5), high=np.log(5e-3)),
+        "lr_patience": hp.choice(label="lr_patience", options=(5, 10, 20)),
         "activation": hp.choice(label="activation", options=('relu', 'elu')),
+        "apply_batchnorm": hp.choice(label="apply_batchnorm", options=(True, False)),
         "conv_layers": hp.choice(label="conv_layers", options=([8,]*4, [16,]*4, [32,]*4, [64,]*4)),
         "conv_kernel_sizes": hp.choice(label="conv_kernel_sizes", options=([5,]*4, [7,]*4, [9,]*4, [11,]*4, [11, 9, 7, 5], [13, 11, 9, 7])),
         "fc_layers": hp.choice(label="fc_layers", options=([128,]*2, [256,]*2, [512,]*2, [1024,]*2, [2048,]*2, [512, 1024], [1024, 512], [1024, 2048], [2048, 1024])),
         "dropout": hp.uniform(label="dropout", low=0, high=0.5),
     }
 
-    launch(args, space, max_evals=60, n_startup_jobs=10)
+    launch(args, space, max_evals=125, n_startup_jobs=25)
