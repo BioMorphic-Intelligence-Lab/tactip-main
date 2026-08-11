@@ -8,7 +8,7 @@ BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
-    "ur_tactip":    None, #(0, 0, 480, 480), # We just use the full resolution and set it in bbox_dict below
+    "ur_tactip":    None, #(0, 0, 480, 480) We just use the full resolution and set it in bbox_dict below
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
@@ -22,7 +22,7 @@ THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
-    "ur_tactip":    [61, -75.0], # Determined using tune_images.py in tactile_image_processing
+    "ur_tactip":    [61, -50.0], # Determined using tune_images.py in tactile_image_processing
     "sim_tactip":   None
 }
 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             sensor='tactip',
             tasks=['surface_3d'],
             data_dirs=['data'],
-            sample_nums=[2500]
+            sample_nums=[3000]
         )
     main(args, shift = -4
     )

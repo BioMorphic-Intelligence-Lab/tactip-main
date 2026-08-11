@@ -18,7 +18,7 @@ def setup_learning(save_dir=None):
    learning_params = {
        'seed': 42,
        'batch_size': 16,
-       'epochs': 200, #300
+       'epochs': 300, #300
        'lr': 1e-4,
        'lr_factor': 0.5,
        'lr_patience': 10,
@@ -137,7 +137,7 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
    target_label_names_dict = {
        'surface_3d': ['pose_z', 'pose_Rx', 'pose_Ry'],
        'surface_6d': ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz'],
-       'surface_9d': ['pose_z', 'pose_Rx', 'pose_Ry', 'Fx', 'Fy', 'Fz'],
+       'surface_9d': ['pose_z', 'pose_Rx', 'pose_Ry', 'shear_x', 'shear_y', 'shear_Rz', 'Fx', 'Fy', 'Fz'],
        'edge_2d':    ['pose_x', 'pose_Rz'],
        'edge_3d':    ['pose_x', 'pose_z', 'pose_Rz'],
        'edge_5d':    ['pose_x', 'pose_z', 'pose_Rx', 'pose_Ry', 'pose_Rz'],
@@ -146,7 +146,7 @@ def setup_model_labels(task_name, data_dirs, save_dir=None):
    target_weights_dict = {
        'surface_3d': [1, 1, 1],
        'surface_6d': [1, 1, 1, 2, 2, 4],
-       'surface_9d': [1, 1, 1, 1, 1, 1],  
+       'surface_9d': [1, 1, 1, 1, 1, 1, 1, 1, 1],  
        'edge_2d':    [1, 1],
        'edge_3d':    [1, 1, 1],
        'edge_5d':    [1, 1, 1, 1, 1],

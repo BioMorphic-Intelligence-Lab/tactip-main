@@ -6,6 +6,7 @@ from tactile_image_processing.collect_data.setup_embodiment import setup_embodim
 from tactile_image_processing.collect_data.setup_targets import setup_targets
 from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES, FT_LABEL_NAMES
 from tactile_image_processing.utils import make_dir, save_json_obj
+from tactile_image_processing.collect_data.test_sensor import ThreeAxisForceSensor
 
 BASE_DATA_PATH = 'temp'
 
@@ -20,6 +21,10 @@ def collect_data(
     pose_label_names = collect_params.get('pose_label_names', POSE_LABEL_NAMES)
     shear_label_names = collect_params.get('shear_label_names', SHEAR_LABEL_NAMES)
     object_pose_label_names = collect_params.get('object_pose_label_names', OBJECT_POSE_LABEL_NAMES)
+
+    # Initialize and Start Phidget Force Sensor 
+    phidget_sensor = ThreeAxisForceSensor()
+    phidget_sensor.start()
 
     # start 50mm above workframe origin with zero joint 6
     print("Moving to 50 mm above workframe origin")
@@ -38,6 +43,22 @@ def collect_data(
     robot.move_linear(np.zeros(6) - clearance)
     joint_angles = robot.joint_angles
     saved_obj_label = ''
+
+    # Global Zero-Tare Routine for Ground Sensor 
+    print("\nTaring Phidget force sensor baseline offsets... Do not touch table.")
+    time.sleep(1.5)  # Allow any mechanical vibrations to settle
+    samples_x, samples_y, samples_z = [], [], []
+    for _ in range(20):
+        fx, fy, fz = phidget_sensor.get_forces_in_newtons()
+        samples_x.append(fx)
+        samples_y.append(fy)
+        samples_z.append(fz)
+        time.sleep(0.02)
+    tare_x = np.mean(samples_x)
+    tare_y = np.mean(samples_y)
+    tare_z = np.mean(samples_z)
+    print("Ground sensor tare calibration complete.\n")
+
 
     # ==== data collection loop ====
     print("Starting data collection sequence")
@@ -66,17 +87,22 @@ def collect_data(
         # move to above new pose (avoid changing pose in contact with object)
         robot.move_linear(pose + shear - clearance)
 
-        # zero FT sensor in mid-air
-        print("Zeroing FT sensor in mid-air...")
-        time.sleep(1.0)         # Wait for vibrations to settle
-        robot.zero_ft_sensor()  # Send command 14
-        time.sleep(0.2)         # Short pause for the zeroing to register
+        # this is for UR sensor!
+        #print("Zeroing FT sensor in mid-air...")
+        #time.sleep(1.0)         # Wait for vibrations to settle
+        #robot.zero_ft_sensor()  # Send command 14
+        #time.sleep(0.2)         # Short pause for the zeroing to register
+ 
+        print("Approaching target pose...")
+        time.sleep(0.2)
 
         # move down to offset pose
         robot.move_linear(pose + shear)
 
         # move to target pose inducing shear
         robot.move_linear(pose)
+
+        time.sleep(0.3)  # 300ms settling window ensures static equilibrium
 
         # collect and process tactile image
         image_outfile = os.path.join(image_dir, image_name)
@@ -87,7 +113,19 @@ def collect_data(
         samples = []
         
         for _ in range(num_samples):
-            samples.append(robot.get_tcp_force)
+            # this is for UR sensor!
+            #samples.append(robot.get_tcp_force)
+
+            # Read from Phidget sensor, apply zero-tare offset, and shape array
+            raw_fx, raw_fy, raw_fz = phidget_sensor.get_forces_in_newtons()
+            net_fx = raw_fx - tare_x
+            net_fy = raw_fy - tare_y
+            net_fz = raw_fz - tare_z
+            
+            # Map values to match the [Fx, Fy, Fz, Tx, Ty, Tz] shape expected by targets_df
+            samples.append([net_fx, net_fy, net_fz, 0.0, 0.0, 0.0])
+            time.sleep(0.005) # Faster polling rate for structural cohesion
+
             
         force_torque = np.mean(np.array(samples), axis=0)
         
@@ -106,6 +144,9 @@ def collect_data(
     # finish 100mm above workframe origin then zero last joint
     robot.move_linear((0, 0, -100, 0, 0, 0))
     robot.move_joints((*robot.joint_angles[:-1], 0))
+    
+    # Safely close both handlers
+    phidget_sensor.close()
     robot.close()
 
     # overwrite targets.csv with updated force/torque values

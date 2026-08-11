@@ -27,6 +27,8 @@ class RealSensor:
         exposure = sensor_params.get('exposure', -7)
 
         self.cam = cv2.VideoCapture(source)
+        #self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        #self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         # Turn off auto-exposure and manually set exposure
         self.cam.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
         self.cam.set(cv2.CAP_PROP_EXPOSURE, exposure)
