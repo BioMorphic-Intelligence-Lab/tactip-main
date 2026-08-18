@@ -33,7 +33,10 @@ If you came to this repository because you want to get started with the TacTip, 
 # 9D Force & Pose Estimation Workflow
 
 On this branch, the pipeline is extended to train a **9D tactile state estimation model** predicting contact pose, shear, and 3D contact forces simultaneously:
-$$\mathbf{y} = [z, R_x, R_y, \; \text{shear}_x, \text{shear}_y, \text{shear}_{Rz}, \; F_x, F_y, F_z]$$
+
+$$
+\mathbf{y} = [z, R_x, R_y, \text{shear}_x, \text{shear}_y, \text{shear}_{Rz}, F_x, F_y, F_z]
+$$
 
 ### 1. Hardware Check
 Test the PhidgetBridge 3-axis load cell connection and calibration:
@@ -68,11 +71,11 @@ python tactile_image_processing/tactile_image_processing/collect_data/verificati
 
 > **Calibrating Sensor Alignment (`TACTIP_ANGLE_DEG`)**:  
 > In `verification_model.py`, `TACTIP_ANGLE_DEG` applies a 2D planar rotation to align the TacTip internal camera axes with the physical reference mark (e.g., tape mark) and the load cell:
-> 1. Set `TACTIP_ANGLE_DEG = 0.0` in `verification_model.py` to observe raw unrotated model predictions $(F_{x, \text{cam}}, F_{y, \text{cam}})$.
+> 1. Set `TACTIP_ANGLE_DEG = 0.0` in `verification_model.py` to observe raw unrotated model predictions ($F_{x, \text{cam}}, F_{y, \text{cam}}$).
 > 2. **Align Tape Mark**: Place the TacTip on the test plate so your physical Tape Mark points directly along $+Y_{\text{sensor}}$ (Forward).
 > 3. **Push along $+Y_{\text{sensor}}$**: Press down and slide the TacTip purely in the $+Y_{\text{sensor}}$ direction.
-> 4. **Calculate Rotation Angle**: Read the observed $F_{x, \text{cam}}$ and $F_{y, \text{cam}}$ outputs and compute the angle:
->    $$\theta = \text{arctan2}(F_{x, \text{cam}}, F_{y, \text{cam}})$$
+> 4. **Calculate Rotation Angle**: Read the observed $F_{x, \text{cam}}$ and $F_{y, \text{cam}}$ outputs and compute the angle:  
+>    $\theta = \text{arctan2}(F_{x, \text{cam}}, F_{y, \text{cam}})$  
 >    The difference between the camera angle and reference load cell angle gives the required rotation offset.
 > 5. Update `TACTIP_ANGLE_DEG = <calculated_angle_in_degrees>` in `verification_model.py` so that reported $F_x, F_y$ align with the physical sensor frame.
 
