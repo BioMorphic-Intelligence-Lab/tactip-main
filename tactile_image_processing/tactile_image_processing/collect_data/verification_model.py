@@ -123,7 +123,7 @@ def process_tactip_frame_standalone(
 # ==========================================
 # 3. MODEL LOADER AND INFERENCE ENGINE
 # ==========================================
-def load_tactip_model(model_dir="tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_A2_1", device="cuda"):
+def load_tactip_model(model_dir="tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_B1", device="cuda"):
     """
     Loads model params from JSONs, builds model architecture, 
     and loads weights from best_model.pth.
@@ -186,7 +186,7 @@ def predict_tactip(model, label_encoder, cv2_frame, target_dims, device):
 # 4. MAIN REAL-TIME VERIFICATION LOOP
 # ==========================================
 def main():
-    MODEL_DIR = "tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_A2_1"
+    MODEL_DIR = "tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_B1"
     CAMERA_INDEX = 4
     TACTIP_ANGLE_DEG = 106.73  # Rotational offset between internal camera and physical tape mark
     
