@@ -149,7 +149,9 @@ def format_params(params):
     if 'activation' in params_conv:
         params_conv['activation'] = ('relu', 'elu')[params['activation']]
     if 'conv_layers' in params_conv:
-        params_conv['conv_layers'] = ('[16,]*4', '[32,]*4')[params['conv_layers']]
+        params_conv['conv_layers'] = ('[64,]*4', '[32,]*4', '[32, 64, 128, 256]')[params['conv_layers']]
+    if 'fc_layers' in params_conv:
+        params_conv['fc_layers'] = ('[512, 512]', '[1024, 1024]')[params['fc_layers']]
     return params_conv
 
 
@@ -251,9 +253,12 @@ if __name__ == "__main__":
         "target_weights_3": hp.uniform(label="target_weights_3", low=0.5, high=1.5),
         "target_weights_4": hp.uniform(label="target_weights_4", low=0.5, high=1.5),
         "target_weights_5": hp.uniform(label="target_weights_5", low=0.5, high=1.5),
+        "target_weights_6": hp.uniform(label="target_weights_6", low=0.5, high=1.5),
+        "target_weights_7": hp.uniform(label="target_weights_7", low=0.5, high=1.5),
+        "target_weights_8": hp.uniform(label="target_weights_8", low=0.5, high=1.5),
         
         "activation": hp.choice(label="activation", options=('relu', 'elu')),
-        "conv_layers": hp.choice(label="conv_layers", options=([16,]*4, [32,]*4)), # add fc_layers , conv_kernel_size?
+        "conv_layers": hp.choice(label="conv_layers", options=([64,]*4, [32,]*4, [32, 64, 128, 256])), # add fc_layers , conv_kernel_size?
         "dropout": hp.uniform(label="dropout", low=0, high=0.5), 
         "fc_layers": hp.choice(label="fc_layers", options=([512]*2, [1024]*2)),
     }

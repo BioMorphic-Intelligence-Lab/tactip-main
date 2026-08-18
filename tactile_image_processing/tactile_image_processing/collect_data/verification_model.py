@@ -70,7 +70,7 @@ def process_tactip_frame_standalone(
     cv2_frame,
     bbox=(0, 0, 640, 480),          # Default crop bounding box (x0, y0, x1, y1)
     target_dims=(128, 128),
-    thresh_params=[61, -75],
+    thresh_params=[61, -50],
     circle_mask_radius=400
 ):
     """
@@ -163,7 +163,7 @@ def predict_tactip(model, label_encoder, cv2_frame, target_dims, device):
         cv2_frame,
         bbox=None,                    # Set to (x0, y0, x1, y1) if your embodiment uses camera cropping
         target_dims=target_dims,       # Usually (128, 128)
-        thresh_params=[61, -75],       # TacTip standard thresholding
+        thresh_params=[61, -50],       # TacTip standard thresholding
         circle_mask_radius=400        # TacTip circle mask
     )
     
@@ -188,6 +188,7 @@ def predict_tactip(model, label_encoder, cv2_frame, target_dims, device):
 def main():
     MODEL_DIR = "tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_A2_1"
     CAMERA_INDEX = 4
+    TACTIP_ANGLE_DEG = 106.73  # Rotational offset between internal camera and physical tape mark
     
     print(f"Loading model framework from '{MODEL_DIR}'...")
     model, label_encoder, model_image_params, device = load_tactip_model(MODEL_DIR)
@@ -253,10 +254,14 @@ def main():
             # 2. Get Model Predictions (TacTip)
             preds, proc_display = predict_tactip(model, label_encoder, frame, target_dims, device)
             
-            # Apply sign flip to shear forces Fx and Fy
-            pred_fx = (preds.get('Fx', 0.0) - tactip_tare[0])
-            pred_fy = (preds.get('Fy', 0.0) - tactip_tare[1])
+            raw_fx = preds.get('Fx', 0.0) - tactip_tare[0]
+            raw_fy = preds.get('Fy', 0.0) - tactip_tare[1]
             pred_fz = preds.get('Fz', 0.0) - tactip_tare[2]
+
+            # Apply 2D Rotation Matrix 
+            theta_rad = np.radians(TACTIP_ANGLE_DEG)
+            pred_fx = np.cos(theta_rad) * raw_fx - np.sin(theta_rad) * raw_fy
+            pred_fy = np.sin(theta_rad) * raw_fx + np.cos(theta_rad) * raw_fy
 
             current_time = time.time() - start_time
 
