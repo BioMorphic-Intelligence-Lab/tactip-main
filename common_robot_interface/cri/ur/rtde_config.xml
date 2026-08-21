@@ -10,6 +10,7 @@
 		<field name="target_TCP_pose" type="VECTOR6D"/>
 		<field name="actual_TCP_speed" type="VECTOR6D"/>
 		<field name="target_TCP_speed" type="VECTOR6D"/>
+		<field name="actual_TCP_force" type="VECTOR6D"/>
 		<field name="runtime_state" type="UINT32"/>
 		<field name="output_int_register_0" type="INT32"/>
 	</recipe>

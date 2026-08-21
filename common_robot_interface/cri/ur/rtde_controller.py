@@ -17,7 +17,7 @@ class RTDEController(RobotController):
     and quaternion rotations.  This format makes it easy to perform
     coordinate transformations.
     """
-    def __init__(self, ip='192.168.56.101'):
+    def __init__(self, ip='192.168.131.51'): # 172.17.0.2
         self._ip = ip
         self._client = RTDEClient(ip)        
         try:   
@@ -164,6 +164,12 @@ class RTDEController(RobotController):
         """Returns the commanded linear velocity.
         """
         return self._client.get_target_linear_speed()
+    
+    @property
+    def tcp_force(self):
+        """Returns the current TCP force/torque.
+        """
+        return self._client.get_tcp_force()
 
     @property
     def elbow(self):
@@ -254,3 +260,8 @@ class RTDEController(RobotController):
         """Releases any resources held by the controller (e.g., sockets).
         """
         return self._client.close()
+    
+    def zero_ft_sensor(self):
+        """Zeroes the force/torque sensor.
+        """
+        self._client.zero_ft_sensor()

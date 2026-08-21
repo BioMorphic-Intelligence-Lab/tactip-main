@@ -18,8 +18,8 @@ class RTDEClient:
 
     class RTDESyncFailedToStart(RuntimeError):
         pass
-
-    def __init__(self, ip='192.168.56.101'):
+    
+    def __init__(self, ip='192.168.131.51'):  #  172.17.0.2
         self.set_units('millimeters', 'degrees')
         self.connect(ip, port=30004)
 
@@ -443,6 +443,30 @@ class RTDEClient:
         linear_speed[:3] /= self._scale_linear
         linear_speed[3:] /= self._scale_angle
         return linear_speed
+    
+    def get_tcp_force(self):
+        """Returns the current TCP force in the reference coordinate frame.
+
+        force/torque = (Fx, Fy, Fz, Tx, Ty, Tz)
+        Fx, Fy, Fz specify force in Newtons
+        Tx, Ty, Tz specify torque in Newton-meters
+        """
+        self._state = self._con.receive()
+        force_torque = np.array(self._state.actual_TCP_force, dtype=np.float64)
+        #return [1,1,1,1,1,1]
+        return force_torque
+    
+    def zero_ft_sensor(self):
+        """Sends command 14 to zero the force/torque sensor.
+        """
+        # Set command registry to 14 
+        self._command.input_int_register_0 = 14
+        
+        # Send the command package
+        self._con.send(self._command)
+        
+        # Block until the robot confirms completion
+        self._wait_for_command_complete()
 
     def get_runtime_state(self):
         """Returns the URScript program runtime state.

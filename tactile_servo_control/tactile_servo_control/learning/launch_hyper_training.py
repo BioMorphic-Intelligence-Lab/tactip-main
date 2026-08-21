@@ -248,9 +248,9 @@ def launch(args, space, max_evals=20, n_startup_jobs=10):
 if __name__ == "__main__":
 
     args = parse_args(
-        robot='sim',
+        robot='ur',
         sensor='tactip',
-        tasks=['edge_2d'],
+        tasks=['surface_9d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],

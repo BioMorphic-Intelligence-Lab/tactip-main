@@ -6,24 +6,24 @@ BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
-    "ur_tactip":    (100, 20, 540, 460), # Set resolution to final intended resolution
     "ur_aerial-A1":    (100, 20, 540, 460), # Set resolution to final intended resolution
+    "ur_tactip":    (0, 0, 640, 480), # Set resolution to final intended resolution: increase! [70,0, 550, 480]
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
     "abb_tactip":   140,
     "cr_tactip":    210,
     "mg400_tactip": None,
-    "ur_tactip":    230,
     "ur_aerial-A1": 230,
+    "ur_tactip":    400, # 400
     "sim_tactip":   240
 }
 THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
-    "ur_tactip":    [121, -11], # Determined using tune_images.py in tactile_image_processing
     "ur_aerial-A1": [121, -11], # Same as ur tactip for now, but may need adjustment
+    "ur_tactip":    [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
     "sim_tactip":   None
 }
 
@@ -34,12 +34,13 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
         'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
         'aerial-A3': (80, 15, 520, 455),
-        'aerial-A2': (0, 0, 640, 480),
         'aerial-B2': (0, 0, 640, 480),
         'aerial-A1': (0, 0, 640, 480),
-        'aerial-nobb': (0, 0, 640, 480)
+        'aerial-nobb': (0, 0, 640, 480),
+        'aerial-A2': (0,0, 640, 480), #[0,0, 640, 480]
+        'aerial-B2': (110, 25, 550, 465)
     }
-    sensor_type = sensor  # TODO: Fix hardcoded sensor type
+    sensor_type = 'aerial-A2'  # TODO: Fix hardcoded sensor type
 
     if 'sim' in robot:
         sensor_image_params = {
@@ -121,7 +122,7 @@ def setup_env_params(robot, save_dir=None):
     work_frame_dict = {
         'cr':    (20, -475, 100, -180, 0, 90),
         'mg400': (285,  0, 0, -180, 0, 0),
-        'ur':    (600, -138, -394.5, 180, 0, 0),
+        'ur':    (-143.73, -538.05, 57.49, 180, 0, 0), # Put flange on contact surface and write down xyz coordinates of work frame
         'sim':   (650, 0, 50, -180, 0, 0),
     } # 180 deg rotation around x or y because z points out of tool flange and is positive up in base frame
 
@@ -130,7 +131,7 @@ def setup_env_params(robot, save_dir=None):
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
-        'ur':    (0, 0, -86.5, 0, 0, 0),
+        'ur':    (0, 0, -85.65, 0, 0, 0), # or -87 , -85.49 check this carefully first!! -> slower the robot
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
 

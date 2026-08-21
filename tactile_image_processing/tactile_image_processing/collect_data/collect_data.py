@@ -1,11 +1,20 @@
 import os
 import numpy as np
+<<<<<<< HEAD
+
+from tactile_data.collect_data.setup_embodiment import setup_embodiment
+from tactile_data.collect_data.setup_targets import setup_targets
+from tactile_data.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES
+from tactile_data.utils import make_dir, save_json_obj
+=======
 import time
 
 from tactile_image_processing.collect_data.setup_embodiment import setup_embodiment
 from tactile_image_processing.collect_data.setup_targets import setup_targets
-from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES
+from tactile_image_processing.collect_data.setup_targets import POSE_LABEL_NAMES, SHEAR_LABEL_NAMES, OBJECT_POSE_LABEL_NAMES, FT_LABEL_NAMES
 from tactile_image_processing.utils import make_dir, save_json_obj
+from tactile_image_processing.collect_data.test_sensor import ThreeAxisForceSensor
+>>>>>>> ha
 
 BASE_DATA_PATH = 'temp'
 
@@ -21,12 +30,26 @@ def collect_data(
     shear_label_names = collect_params.get('shear_label_names', SHEAR_LABEL_NAMES)
     object_pose_label_names = collect_params.get('object_pose_label_names', OBJECT_POSE_LABEL_NAMES)
 
+<<<<<<< HEAD
+    # start 50mm above workframe origin with zero joint 6
+=======
+    # Initialize and Start Phidget Force Sensor 
+    phidget_sensor = ThreeAxisForceSensor()
+    phidget_sensor.start()
+
     # start 50mm above workframe origin with zero joint 6
     print("Moving to 50 mm above workframe origin")
+>>>>>>> ha
     robot.move_linear((0, 0, -50, 0, 0, 0))
     robot.move_joints([*robot.joint_angles[:-1], 0])
 
     # collect reference image
+<<<<<<< HEAD
+    image_outfile = os.path.join(image_dir, 'image_0.png')
+    sensor.process(image_outfile)
+
+    # clear object by 10mm
+=======
     print(f"Collecting reference image in {image_dir}/image_0.png")
     image_outfile = os.path.join(image_dir, 'image_0.png')
     sensor.process(image_outfile)
@@ -34,20 +57,44 @@ def collect_data(
 
     # clear object by 10mm
     print("Moving to 10 mm above workframe origin")
+>>>>>>> ha
     clearance = (0, 0, 10, 0, 0, 0)
     robot.move_linear(np.zeros(6) - clearance)
     joint_angles = robot.joint_angles
     saved_obj_label = ''
 
+<<<<<<< HEAD
+    # ==== data collection loop ====
+=======
+    # Global Zero-Tare Routine for Ground Sensor 
+    print("\nTaring Phidget force sensor baseline offsets... Do not touch table.")
+    time.sleep(1.5)  # Allow any mechanical vibrations to settle
+    samples_x, samples_y, samples_z = [], [], []
+    for _ in range(20):
+        fx, fy, fz = phidget_sensor.get_forces_in_newtons()
+        samples_x.append(fx)
+        samples_y.append(fy)
+        samples_z.append(fz)
+        time.sleep(0.02)
+    tare_x = np.mean(samples_x)
+    tare_y = np.mean(samples_y)
+    tare_z = np.mean(samples_z)
+    print("Ground sensor tare calibration complete.\n")
+
+
     # ==== data collection loop ====
     print("Starting data collection sequence")
+>>>>>>> ha
     for i, row in targets_df.iterrows():
         image_name = row.loc["sensor_image"]
         obj_label = row.loc["object_label"]
         pose = row.loc[pose_label_names].values.astype(float)
         shear = row.loc[shear_label_names].values.astype(float)
         obj_pose = row.loc[object_pose_label_names].values.astype(float)
+<<<<<<< HEAD
+=======
         print("Object pose: ", obj_pose)
+>>>>>>> ha
 
         # report
         with np.printoptions(precision=1, suppress=True):
@@ -66,16 +113,62 @@ def collect_data(
         # move to above new pose (avoid changing pose in contact with object)
         robot.move_linear(pose + shear - clearance)
 
+<<<<<<< HEAD
+=======
+        # this is for UR sensor!
+        #print("Zeroing FT sensor in mid-air...")
+        #time.sleep(1.0)         # Wait for vibrations to settle
+        #robot.zero_ft_sensor()  # Send command 14
+        #time.sleep(0.2)         # Short pause for the zeroing to register
+ 
+        print("Approaching target pose...")
+        time.sleep(0.2)
+
+>>>>>>> ha
         # move down to offset pose
         robot.move_linear(pose + shear)
 
         # move to target pose inducing shear
         robot.move_linear(pose)
 
+<<<<<<< HEAD
+=======
+        time.sleep(0.3)  # 300ms settling window ensures static equilibrium
+
+>>>>>>> ha
         # collect and process tactile image
         image_outfile = os.path.join(image_dir, image_name)
         sensor.process(image_outfile)
 
+<<<<<<< HEAD
+=======
+        # force/torque reading - average multiple samples to reduce noise
+        num_samples = 30
+        samples = []
+        
+        for _ in range(num_samples):
+            # this is for UR sensor!
+            #samples.append(robot.get_tcp_force)
+
+            # Read from Phidget sensor, apply zero-tare offset, and shape array
+            raw_fx, raw_fy, raw_fz = phidget_sensor.get_forces_in_newtons()
+            net_fx = raw_fx - tare_x
+            net_fy = raw_fy - tare_y
+            net_fz = raw_fz - tare_z
+            
+            # Map values to match the [Fx, Fy, Fz, Tx, Ty, Tz] shape expected by targets_df
+            samples.append([net_fx, net_fy, net_fz, 0.0, 0.0, 0.0])
+            time.sleep(0.005) # Faster polling rate for structural cohesion
+
+            
+        force_torque = np.mean(np.array(samples), axis=0)
+        
+        print(f" Averaged Force/Torque ({num_samples} samples): ", force_torque)
+
+        for j, col in enumerate(FT_LABEL_NAMES):
+            targets_df.at[i, col] = force_torque[j]
+
+>>>>>>> ha
         # move above the target pose
         robot.move_linear(pose - clearance)
 
@@ -83,11 +176,28 @@ def collect_data(
         if not collect_params.get('sort', False):
             robot.move_joints(joint_angles)
 
-    # finish 100mm above workframe origin then zero last joint
-    robot.move_linear((0, 0, -100, 0, 0, 0))
+<<<<<<< HEAD
+    # finish 50mm above workframe origin then zero last joint
+    robot.move_linear((0, 0, -50, 0, 0, 0))
     robot.move_joints((*robot.joint_angles[:-1], 0))
     robot.close()
 
+=======
+    # finish 100mm above workframe origin then zero last joint
+    robot.move_linear((0, 0, -100, 0, 0, 0))
+    robot.move_joints((*robot.joint_angles[:-1], 0))
+    
+    # Safely close both handlers
+    phidget_sensor.close()
+    robot.close()
+
+    # overwrite targets.csv with updated force/torque values
+    save_dir = os.path.dirname(image_dir)
+    target_file = os.path.join(save_dir, "targets.csv")
+    targets_df.to_csv(target_file, index=False)
+    print(f"Updated targets saved to {target_file}")
+
+>>>>>>> ha
 
 if __name__ == "__main__":
 
@@ -127,7 +237,11 @@ if __name__ == "__main__":
         image_dir = os.path.join(save_dir, "sensor_images")
         make_dir(save_dir)
         make_dir(image_dir)
+<<<<<<< HEAD
+        save_json_obj(sensor_params, os.path.join(save_dir, 'sensor_params'))
+=======
         save_json_obj(sensor_params, os.path.join(save_dir, 'sensor_image_params'))
+>>>>>>> ha
 
         # setup embodiment
         robot, sensor = setup_embodiment(
