@@ -179,12 +179,29 @@ Collect synchronized tactile images, robot poses, and force readings:
 ```bash
 python tactile_servo_control/tactile_servo_control/collect_data/launch_collect_data.py -r ur -s tactip -t surface_9d -n 3000
 ```
-> **Note**: Adjust camera `source` index, bounding box (`BBOX`), and thresholding in `setup_collect_data.py`.
+> **Note**: Adjust camera `source` index, bounding box (`BBOX`), and thresholding (`THRESH`) in `setup_collect_data.py`.
+> **Note**: Use `surface_3d` config for data collection instead of `surface_9d` if it does not exist yet
 
-### 3. Force Coordinate Transformation
+### 3. Preprocess Labels for Training
+Collected data will automatically be dumped into `tactile_data_shear/data/<your_name>/surface_<n>d`. Data is divided into training and validation sets. Images are automatically preprocessed using OpenCV.
+However some preprocessing of the labels is still required.
+
+#### 3.1 Correct label shift 
+If the sensor position shifted between sessions, apply the label-shift correction utilities. 
+```bash
+python tactile_data_shear/tactile_data_shear/shift_labels.py
+```
+
+#### 3.2 Force Coordinate Transformation
 Because the table-mounted load cell measures forces in the **World Frame**, convert all force labels ($F_x, F_y, F_z$) into the **local TacTip camera frame** ($F_{\text{tactip}} = R^{-1} F_{\text{world}}$) before training:
 ```bash
 python tactile_servo_control/tactile_servo_control/learning/rotation_matrix.py
+```
+
+#### 3.3 Fix FT Limits
+Pose (position and rotation) limits from the dataset are already applied by default, however force and torque limits are not. Thus this needs to be fixed with:
+```bash
+python tactile_servo_control/tactile_servo_control/learning/fix_ft_limits.py
 ```
 
 ### 4. Model Training
