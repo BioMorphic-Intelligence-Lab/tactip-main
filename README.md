@@ -231,3 +231,11 @@ python tactile_image_processing/tactile_image_processing/collect_data/verificati
 [Pose-Based Tactile Servoing](https://ieeexplore.ieee.org/document/9502718)
 
 [Pose- and Shear-based Tactile Servoing](https://arxiv.org/abs/2312.08411)
+
+# NOTES FOR MIANTAO
+update parameters in `setup_collect_data.py`:
+the THRESH value for ur_tactip, which determines the depth? Should be \[61, -75], because c-series tactip has different shape than a- or b-series
+the tcp_pose_dict (tool center point) should be (0 0 -87) to (0 0 -86), check carefully by slowing down the robot
+for data collection use 3D config instead of 9D because it doesn't exist, but should be identical
+for training just use 9D config.
+remember to `shift_labels.py` `rotation_matrix.py` `fix_fit_limits.py`
