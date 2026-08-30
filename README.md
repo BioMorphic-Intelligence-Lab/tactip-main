@@ -177,7 +177,7 @@ python tactile_image_processing/tactile_image_processing/collect_data/test_senso
 ### 2. Data Collection
 Collect synchronized tactile images, robot poses, and force readings:
 ```bash
-python tactile_servo_control/tactile_servo_control/collect_data/launch_collect_data.py -r ur -s tactip -t surface_9d -n 3000
+python tactile_servo_control/tactile_servo_control/collect_data/launch_collect_data.py -r ur -s tactip -t surface_3d -n 3000
 ```
 > **Note**: Adjust camera `source` index, bounding box (`BBOX`), and thresholding (`THRESH`) in `setup_collect_data.py`.
 > **Note**: Use `surface_3d` config for data collection instead of `surface_9d` if it does not exist yet
