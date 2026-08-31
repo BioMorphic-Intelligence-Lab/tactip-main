@@ -6,7 +6,12 @@ BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
-    "ur_aerial-A1":    (100, 20, 540, 460), # Set resolution to final intended resolution
+    "ur_aerial-A1": (100, 20, 540, 460), # Set resolution to final intended resolution
+    "ur_aerial-B1": (100, 20, 540, 460),
+    "ur_aerial-B2": (100, 20, 540, 460),
+    "ur_aerial-C1": (100, 20, 540, 460),
+    "ur_aerial-C2": (100, 20, 540, 460),
+    "ur_aerial-C3": (100, 20, 540, 460),
     "ur_tactip":    (0, 0, 640, 480), # Set resolution to final intended resolution: increase! [70,0, 550, 480]
     "sim_tactip":   (12, 12, 240, 240)
 }
@@ -15,6 +20,11 @@ CIRCLE_MASK_RADIUS = {
     "cr_tactip":    210,
     "mg400_tactip": None,
     "ur_aerial-A1": 230,
+    "ur_aerial-B1": 230,
+    "ur_aerial-B2": 230,
+    "ur_aerial-C1": 230,
+    "ur_aerial-C2": 230,
+    "ur_aerial-C3": 230,
     "ur_tactip":    400, # 400
     "sim_tactip":   240
 }
@@ -23,6 +33,11 @@ THRESH = {
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
     "ur_aerial-A1": [121, -11], # Same as ur tactip for now, but may need adjustment
+    "ur_aerial-B1": [121, -11],
+    "ur_aerial-B2": [121, -11],
+    "ur_aerial-C1": [121, -11],
+    "ur_aerial-C2": [121, -11],
+    "ur_aerial-C3": [121, -11],
     "ur_tactip":    [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
     "sim_tactip":   None
 }
@@ -30,16 +45,20 @@ THRESH = {
 
 def setup_sensor_image_params(robot, sensor, save_dir=None):
 
-    bbox_dict = { # (x0, y0, x1, y1), y positive downward and x positive rightwards from top left corner
-        'mini': (320-160,    240-160+25, 320+160,    240+160+25),
-        'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
-        'aerial-A3': (80, 15, 520, 455),
-        'aerial-B2': (0, 0, 640, 480),
-        'aerial-A1': (0, 0, 640, 480),
-        'aerial-nobb': (0, 0, 640, 480),
-        'aerial-A2': (0,0, 640, 480), #[0,0, 640, 480]
-        'aerial-B2': (110, 25, 550, 465)
-    }
+    # bbox_dict = { # (x0, y0, x1, y1), y positive downward and x positive rightwards from top left corner
+    #     'mini': (320-160,    240-160+25, 320+160,    240+160+25),
+    #     'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
+    #     'aerial-A3': (80, 15, 520, 455),
+    #     'aerial-A1': (0, 0, 640, 480),
+    #     'aerial-B1': (0, 0, 640, 480),
+    #     'aerial-B2': (0, 0, 640, 480),
+    #     'aerial-C1': (0, 0, 640, 480),
+    #     'aerial-C2': (0, 0, 640, 480),
+    #     'aerial-C3': (0, 0, 640, 480),
+    #     'aerial-nobb': (0, 0, 640, 480),
+    #     'aerial-A2': (0,0, 640, 480), #[0,0, 640, 480]
+    #     'aerial-B2': (110, 25, 550, 465)
+    # }
     sensor_type = 'aerial-A2'  # TODO: Fix hardcoded sensor type
 
     if 'sim' in robot:
@@ -55,7 +74,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
             'source': 4, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
-            'bbox': bbox_dict[sensor_type]
+            # 'bbox': bbox_dict[sensor_type]
         }
 
     if save_dir:
