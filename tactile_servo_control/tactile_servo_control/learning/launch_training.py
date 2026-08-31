@@ -6,7 +6,6 @@ import itertools as it
 import torch
 
 from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH, BASE_MODEL_PATH
-# from tactile_data.tactile_data import BASE_DATA_PATH, BASE_MODEL_PATH
 from tactile_image_processing.utils import make_dir
 from tactile_learning.supervised.image_generator import ImageDataGenerator
 from tactile_learning.supervised.models import create_model
@@ -24,30 +23,20 @@ def launch(args):
 
     output_dir = '_'.join([args.robot, args.sensor])
 
-    for args.task, args.model in it.product(args.tasks, args.models):
+    for args.data_dim, args.model in it.product(args.data_dim, args.models):
 
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
 
-        # small hack to deal with pose and shear separation for surface task
-        # this way you can specify either surface_3d or surface_6d with only surface_3d data
-        if args.task == 'surface_6d':
-            task_for_dir_name = 'surface_9d'
-        elif args.task == 'surface_9d':
-            task_for_dir_name = 'surface_9d'
-            args.task = 'surface_3d'
-        else:
-            task_for_dir_name = args.task
-
         # data dirs - list of directories combined in generator        
         train_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.train_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, args.data_dim, d) for d in args.train_dirs
         ]
         val_data_dirs = [
-            os.path.join(BASE_DATA_PATH, output_dir, task_for_dir_name, d) for d in args.val_dirs
+            os.path.join(BASE_DATA_PATH, output_dir, args.data_dim, d) for d in args.val_dirs
         ]
 
         # setup save dir
-        save_dir = os.path.join(BASE_MODEL_PATH, output_dir, args.task, model_dir_name)
+        save_dir = os.path.join(BASE_MODEL_PATH, output_dir, args.output_dim, model_dir_name)
         make_dir(save_dir)
         
         # give feedback to user
@@ -58,7 +47,7 @@ def launch(args):
         # setup parameters
         learning_params, model_params, label_params, image_params = setup_training(
             args.model,
-            args.task,
+            args.data_dim,
             train_data_dirs,
             save_dir
         )
@@ -82,7 +71,7 @@ def launch(args):
         print(f"Batch size: {learning_params['batch_size']}")
         print(f"Learning rate: {learning_params['lr']}")
         print(f"Model: {args.model}")
-        print(f"Task: {args.task}")
+        print(f"Data dimension: {args.data_dim}")
         print(f"Device: {args.device}")
 
         # create the label encoder/decoder and plotter
@@ -126,12 +115,13 @@ if __name__ == "__main__":
 
     args = parse_args(
         robot='ur',
-        sensor='tactip',
-        tasks=['surface_9d'],
+        sensor='aerial-B1',
+        data_dim=['surface_9d'],
+        output_dim = ['surface_5d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],
-        model_version=['A1_2026'],
+        model_version=['B1_2026'],
         device='cuda'
     )
     
