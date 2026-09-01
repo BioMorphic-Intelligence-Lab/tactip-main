@@ -21,7 +21,7 @@ def collect_data(
     shear_label_names = collect_params.get('shear_label_names', SHEAR_LABEL_NAMES)
     object_pose_label_names = collect_params.get('object_pose_label_names', OBJECT_POSE_LABEL_NAMES)
 
-    # Initialize and Start Phidget Force Sensor 
+    # Initialize and Start Phidget Force Sensor
     phidget_sensor = ThreeAxisForceSensor()
     phidget_sensor.start()
 
@@ -60,6 +60,9 @@ def collect_data(
 
     print("Ground sensor tare calibration complete.\n")
 
+    # Prompt user to physically mark the TacTip's positive X and Y directions
+    print("Mark Tactip positive X and Y on the sensor housing. \n")
+    input("Press Enter to continue...")
 
     # ==== data collection loop ====
     print("Starting data collection sequence")
