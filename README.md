@@ -1,8 +1,15 @@
-# Aerial Tactile Servoing — Meta Repository
+# Aerial Tactile Servoing — Tactip Main Repository
 
-This repository is the central place for the **Aerial Tactile Servoing (ATS)** project. It aggregates submodules from [DexterousRobot](https://github.com/dexterousrobot) (forked and extended) and contains all code needed to go from raw data collection to a deployed tactile servo controller on a real or simulated robot.
+This repository is the central place for the **Aerial Tactile Servoing (ATS)** project. 
 
 The project demonstrates tactile servoing on an aerial manipulator using the [TacTip](https://softroboticstoolkit.com/book/tactip) optical tactile sensor. A new TacTip embodiment was designed for aerial use, requiring new training data, new models, and a full end-to-end workflow.
+---
+
+## History
+
+This repository was pieced together from the various codebases previously published under [DexterousRobot](https://github.com/dexterousrobot), and extended to include the `ur_simulation_suite-tactip` and many changes to facilitate inclusion of force in collection and prediction.
+
+The old repositories at [DexterousRobot](https://github.com/dexterousrobot) are no longer public.
 
 ---
 
@@ -11,11 +18,9 @@ The project demonstrates tactile servoing on an aerial manipulator using the [Ta
 | Submodule / folder | Purpose |
 |---|---|
 | `tactile_servo_control/` | End-to-end pipeline: data collection, model training, evaluation, and servo control |
-| `tactile_sim/` | PyBullet physics simulator for robot arms and tactile sensors |
 | `tactile_learning/` | CNN and ViT model definitions and training utilities |
 | `tactile_image_processing/` | Image pre-processing, augmentation, marker extraction, and sensor interface |
 | `common_robot_interface/` | Unified control API for UR, Franka, ABB, and Dobot robots |
-| `tactile_data/` | Collected training/validation data and trained model checkpoints |
 | `tactile_data_shear/` | Shear-force data and analysis scripts |
 | `programs/` | UR robot programs (symlink) |
 | `urcaps/` | UR CAPs plugins |
@@ -27,14 +32,15 @@ The project demonstrates tactile servoing on an aerial manipulator using the [Ta
 
 The full pipeline runs in the following order:
 
-1. **Simulate & validate** — Use `tactile_sim` to rehearse data collection and servo control in PyBullet before touching real hardware.
-2. **Collect data** — Drive the robot over a surface/edge with `launch_collect_data.py` to gather labelled tactile images.
+1. **Simulate & validate** — Use `ur_simulation_suite-tactip` to rehearse data collection on a simulated UR16e robot, to validate hardware control.
+2. **Collect data** — Drive the robot over a surface/edge with `launch_collect_data.py` to gather labelled tactile images (and, if needed, force samples).
 3. **Pre-process images** — Tune crop, normalisation, and augmentation parameters in `tactile_image_processing`.
 4. **Correct label shift** — If the sensor position shifted between sessions, apply the label-shift correction utilities.
-5. **Train a model** — Run `launch_training.py` (or `launch_hyper_training.py` for hyperparameter search) to fit a CNN to the collected data.
+5. **Train a model** — Run `launch_training.py` to fit a CNN to the collected data.
 6. **Evaluate** — Use `evaluate_model.py` to check prediction accuracy on the validation set.
+7. **Hyperparameter optimization** — Configure and run `launch_hyper_training.py` to search the defined space for the optimal hyperparameters.
 7. **Demo the sensor** — Run `sensor_demo.py` for a live visualisation of the model's pose/shear predictions.
-8. **Servo control** — Run `launch_servo_control.py` to close the loop and perform surface following, edge following, or other tasks.
+8. **Deploy** — Copy over models for use in the ROS2 based Tactip driver node from the [Aerial Tactile Servoing](https://github.com/BioMorphic-Intelligence-Lab/aerial_tactile_servoing) project.
 
 ---
 
@@ -49,19 +55,11 @@ The main application package. Entry points:
 | `learning/launch_training.py` | Train a pose/shear prediction model |
 | `learning/launch_hyper_training.py` | Hyperparameter optimisation with Hyperopt |
 | `prediction/evaluate_model.py` | Evaluate a trained model on validation data |
-| `servo_control/launch_servo_control.py` | Run closed-loop tactile servo control |
 | `utils/sensor_demo.py` | Live sensor demo with real-time predictions |
 
 Supported tasks (via `-t`): `surface_3d`, `edge_2d`, `edge_3d`, `edge_5d`, `surface_5d`, `surface_6d`  
 Supported robots (via `-r`): `sim`, `ur`, `mg400`, `cr`, `sim_cr`  
 Supported sensors (via `-s`): `tactip`, `tactip_127`, `tactip_331`
-
-### `tactile_sim`
-PyBullet simulator supporting:
-- **Robot arms:** UR5, Franka Panda, Kuka IIWA, Dobot CR3, Dobot MG400
-- **Tactile sensors:** TacTip (optical), DIGIT (gel-based), DigiTac (hybrid)
-- **Control modes:** TCP position/velocity, joint position/velocity
-- **Embodiments:** arm-only, arm + tactile sensor, arm + vision sensor
 
 ### `tactile_learning`
 Supervised learning models:
@@ -90,74 +88,31 @@ Also includes a GUI robot jogger (`tools/robot_jogger/`) for manual positioning.
 ## Quick start
 
 ```bash
-# 1. Clone with all submodules
-git clone --recurse-submodules https://github.com/mbrummelhuis/ats-meta.git
-cd ats-meta
+# 1. Clone this repository
+git clone https://github.com/BioMorphic-Intelligence-Lab/tactip-main.git
+cd tactip-main
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
+# 3. Install internal dependencies
+cd tactile_data_shear && pip install -e . && cd ..
+cd tactile_image_processing && pip install -e . && cd ..
+cd tactile_learning && pip install -e . && cd ..
+cd tactile_servo control && pip install -e . && cd ..
+cd common_robot_interface && pip install -e . && cd ..
+
 # 3. Live sensor demo (configure paths inside the script for your setup)
 python3 tactile_servo_control/tactile_servo_control/utils/sensor_demo.py
 
-# 4. Simulated data collection
-python3 tactile_servo_control/tactile_servo_control/collect_data/launch_collect_data.py -r sim -s tactip -t surface_3d
-
 # 5. Train a model
 python3 tactile_servo_control/tactile_servo_control/learning/launch_training.py -r sim -s tactip -t surface_3d -d cpu
-
-# 6. Run servo control in simulation
-python3 tactile_servo_control/tactile_servo_control/servo_control/launch_servo_control.py -r sim -s tactip -t surface_3d
 ```
-
-For full installation and usage instructions see the [tactile_servo_control README](https://github.com/mbrummelhuis/tactile_servo_control/tree/readme-maintenance).
-
----
-
-## Tech stack
-
-- **Deep learning:** PyTorch, ViT-PyTorch, TensorBoard, Hyperopt
-- **Computer vision:** OpenCV, scikit-image
-- **Robotics / simulation:** PyBullet, ROS 2 (Humble), UR RTDE
-- **Numerics:** NumPy, SciPy, Pandas, Einops
-- **License:** GPL v3
-
----
 
 ## References
 
 - [Pose-Based Tactile Servoing](https://ieeexplore.ieee.org/document/9502718)
 - [Pose- and Shear-based Tactile Servoing](https://arxiv.org/abs/2312.08411)
-# Tactip meta repository
-This repository was created as a central place for projects involving the TacTip optical tactile sensor. It contains as submodules the relevant repositories from [DexterousRobot](https://github.com/dexterousrobot), which accompany a number of [publications](#references) related to the TacTip. Furthermore, it contains a simulator for the Universal Robots UR5, which can be used to simulate the robot arm interfacing with the rest of the code through Common Robot Interface's RTDE controller. This was used to prepare the data collection for the TacTip, and familiarise and validate the code before letting it control a real life robot.
-
-Note that the submodules of this repository contain forks of the original repositories from [DexterousRobot](https://github.com/dexterousrobot). 
-
-# Project context
-While the TacTip as an optical tactile sensor has been used in numerous works, the context of this meta repository is the Aerial Tactile Servoing project. For this, a new embodiment of the TacTip was designed and thus new training data had to be gathered and new models had to be trained. The goal of the project is to demonstrate tactile servoing on an aerial manipulator. The meta repository contains all the work related to this full workflow:
-- Preparing robot control for data gathering
-- Tuning image (pre-)processing parameters
-- Shifting data in case of label shift
-- Training pose- and shear prediction models on the training data
-- Demoing the sensor with a demo tool
-
-
-
-# How to use
-If you came to this repository because you want to get started with the TacTip, you can proceed in the following way:
-1. Clone this repository recursively 
-    ```
-    git clone --recurse-submodules https://github.com/mbrummelhuis/ats-meta.git
-
-    ```
-2. The demo can be started with
-    ```
-    cd /root/of/ats-meta
-    python3 tactile_servo_control/tactile_servo_control/utils/sensor_demo.py
-    ```
-    You may need to go into the Python file to configure things correctly for your setup.
-3. The README of [tactile_servo_control](https://github.com/mbrummelhuis/tactile_servo_control/tree/readme-maintenance) (readme-maintenance branch) contains instructions on installation of submodules, data collection, learning/training, and using the models. 
-
 
 
 # 9D Force & Pose Estimation Workflow
