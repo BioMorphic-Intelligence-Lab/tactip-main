@@ -1,1 +1,63 @@
-{"pose_llims": [0, 0, 0.5, -25, -25, 0], "pose_ulims": [0, 0, 3, 25, 25, 0], "shear_llims": [-3, -3, 0, 0, 0, -3], "shear_ulims": [3, 3, 0, 0, 0, 3], "object_poses": {"surface": [0, 0, 0, 0, 0, 0]}, "sample_disk": true, "sort": false, "seed": 0}
+{
+    "pose_llims": [
+        0,
+        0,
+        0.5,
+        -25,
+        -25,
+        0
+    ],
+    "pose_ulims": [
+        0,
+        0,
+        3,
+        25,
+        25,
+        0
+    ],
+    "shear_llims": [
+        -3,
+        -3,
+        0,
+        0,
+        0,
+        -3
+    ],
+    "shear_ulims": [
+        3,
+        3,
+        0,
+        0,
+        0,
+        3
+    ],
+    "object_poses": {
+        "surface": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ]
+    },
+    "sample_disk": true,
+    "sort": false,
+    "seed": 0,
+    "ft_llims": [
+        -2.1136,
+        -3.0999,
+        0.1125,
+        0.0,
+        0.0,
+        0.0
+    ],
+    "ft_ulims": [
+        2.7474,
+        1.625,
+        7.6753,
+        0.0,
+        0.0,
+        0.0
+    ]
+}
