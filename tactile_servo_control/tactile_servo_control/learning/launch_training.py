@@ -5,7 +5,7 @@ import os
 import itertools as it
 import torch
 
-from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH, BASE_MODEL_PATH
+from tactile_data_shear.tactile_servo_control_paths import BASE_DATA_PATH, BASE_MODEL_PATH
 from tactile_image_processing.utils import make_dir
 from tactile_learning.supervised.image_generator import ImageDataGenerator
 from tactile_learning.supervised.models import create_model
@@ -23,11 +23,11 @@ def launch(args):
 
     output_dir = '_'.join([args.robot, args.sensor])
 
-    for args.data_dim, args.model in it.product(args.data_dim, args.models):
+    for args.data_dim, args.output_dim, args.model in it.product(args.data_dims, args.output_dims, args.models):
 
         model_dir_name = '_'.join(filter(None, [args.model, *args.model_version]))
 
-        # data dirs - list of directories combined in generator        
+        # data dirs - list of directories combined in generator
         train_data_dirs = [
             os.path.join(BASE_DATA_PATH, output_dir, args.data_dim, d) for d in args.train_dirs
         ]
@@ -47,7 +47,7 @@ def launch(args):
         # setup parameters
         learning_params, model_params, label_params, image_params = setup_training(
             args.model,
-            args.data_dim,
+            args.output_dim,
             train_data_dirs,
             save_dir
         )
@@ -116,8 +116,8 @@ if __name__ == "__main__":
     args = parse_args(
         robot='ur',
         sensor='aerial-B1',
-        data_dim=['surface_9d'],
-        output_dim = ['surface_5d'],
+        data_dims=['surface_9d'],
+        output_dims = ['surface_5d'],
         train_dirs=['train_data'],
         val_dirs=['val_data'],
         models=['simple_cnn'],

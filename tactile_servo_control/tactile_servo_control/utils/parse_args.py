@@ -5,6 +5,8 @@ def parse_args(
         robot='sim',
         sensor='tactip',
         tasks=['edge_2d'],
+        data_dims=['surface_9d'],
+        output_dims=['surface_9d'],
         data_dirs=['train', 'val'],
         sample_nums=[400, 100],
         train_dirs=['train'],
@@ -88,6 +90,18 @@ def parse_args(
         type=str,
         help="Choose device from ['cpu', 'cuda']",
         default=device
+    )
+    parser.add_argument(
+        '-d_d','--data_dims',
+        type=str,
+        help="Dimension of the labels",
+        default=data_dims
+    )
+    parser.add_argument(
+        '-od','--output_dims',
+        type=str,
+        help="Dimension of the model output",
+        default=output_dims
     )
 
     return parser.parse_args()

@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 
-from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH
+from tactile_data_shear.tactile_servo_control_paths import BASE_DATA_PATH
 
 """
 Script to analyse the collected training and validation data for the surface_3d task.

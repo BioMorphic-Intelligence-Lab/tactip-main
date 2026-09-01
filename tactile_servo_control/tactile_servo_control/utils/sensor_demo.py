@@ -14,7 +14,7 @@ from skimage.metrics import structural_similarity as ssim
 from tactile_image_processing.utils import load_json_obj
 from tactile_image_processing.image_transforms import process_image
 from tactile_learning.supervised.models import create_model
-from tactile_data_shear.tactile_servo_control import BASE_MODEL_PATH
+from tactile_data_shear.tactile_servo_control_paths import BASE_MODEL_PATH
 from tactile_image_processing.simple_sensors import RealSensor
 
 from tactile_servo_control.utils.label_encoder import LabelEncoder

@@ -3,7 +3,7 @@ python launch_collect_data.py -r sim -s tactip -t edge_2d
 """
 import os
 
-from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH
+from tactile_data_shear.tactile_servo_control_paths import BASE_DATA_PATH
 from tactile_image_processing.collect_data.collect_data import collect_data
 from tactile_image_processing.collect_data.add_ft_limits import add_ft_limits
 from tactile_image_processing.collect_data.setup_targets import setup_targets

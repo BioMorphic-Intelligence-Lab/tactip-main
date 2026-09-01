@@ -5,7 +5,7 @@ import pathlib
 temp = pathlib.PosixPath
 pathlib.PosixPath = pathlib.WindowsPatz
 
-from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH
+from tactile_data_shear.tactile_servo_control_paths import BASE_DATA_PATH
 
 
 def load_pkl_obj(name):
