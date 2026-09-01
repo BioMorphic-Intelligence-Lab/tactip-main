@@ -5,6 +5,7 @@ import os
 
 from tactile_data_shear.tactile_servo_control import BASE_DATA_PATH
 from tactile_image_processing.collect_data.collect_data import collect_data
+from tactile_image_processing.collect_data.add_ft_limits import add_ft_limits
 from tactile_image_processing.collect_data.setup_targets import setup_targets
 from tactile_image_processing.process_data.process_image_data import process_image_data, partition_data
 from tactile_image_processing.utils import make_dir
@@ -58,6 +59,13 @@ def launch(args):
                 collect_params
             )
 
+            # TODO: Delete try after testing
+            try:
+                if args.task == "surface_9d":
+                    add_ft_limits(save_dir, )
+            except:
+                print("Adding FT limits failed, run manually via tactile_image_processing/tactile_image_processing/collect_data/add_ft_limits.py")
+
 
 def process_images(args, image_params, split=None):
 
@@ -76,7 +84,7 @@ if __name__ == "__main__":
         sensor='tactip',
         tasks=['surface_3d'],
         data_dirs=['data'],
-        sample_nums=[3000] #4000
+        sample_nums=[5] #4000
     )
     launch(args)
 

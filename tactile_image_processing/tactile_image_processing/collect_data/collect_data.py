@@ -10,7 +10,6 @@ from tactile_image_processing.collect_data.test_sensor import ThreeAxisForceSens
 
 BASE_DATA_PATH = 'temp'
 
-
 def collect_data(
     robot,
     sensor,
@@ -54,9 +53,11 @@ def collect_data(
         samples_y.append(fy)
         samples_z.append(fz)
         time.sleep(0.02)
-    tare_x = np.mean(samples_x)
-    tare_y = np.mean(samples_y)
-    tare_z = np.mean(samples_z)
+    tare = {}
+    tare['x'] = np.mean(samples_x)
+    tare['y'] = np.mean(samples_y)
+    tare['z'] = np.mean(samples_z)
+
     print("Ground sensor tare calibration complete.\n")
 
 
@@ -118,9 +119,9 @@ def collect_data(
 
             # Read from Phidget sensor, apply zero-tare offset, and shape array
             raw_fx, raw_fy, raw_fz = phidget_sensor.get_forces_in_newtons()
-            net_fx = raw_fx - tare_x
-            net_fy = raw_fy - tare_y
-            net_fz = raw_fz - tare_z
+            net_fx = raw_fx - tare['x']
+            net_fy = raw_fy - tare['y']
+            net_fz = raw_fz - tare["z"]
             
             # Map values to match the [Fx, Fy, Fz, Tx, Ty, Tz] shape expected by targets_df
             samples.append([net_fx, net_fy, net_fz, 0.0, 0.0, 0.0])
