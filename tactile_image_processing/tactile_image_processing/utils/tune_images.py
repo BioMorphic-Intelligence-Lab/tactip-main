@@ -1,6 +1,8 @@
 """
 Author: Martijn Brummelhuis
 """
+import matplotlib
+matplotlib.use('TkAgg')
 import cv2
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
@@ -21,7 +23,7 @@ def setup_sensor(exp=-7):
     
     sensor_image_params = {
         'type': sensor_type,
-        'source': 5,
+        'source': 4,
         'exposure': exp,
         'gray': True,
         'bbox': bbox_dict[sensor_type]

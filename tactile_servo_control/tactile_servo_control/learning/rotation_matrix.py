@@ -28,10 +28,14 @@ def transform_forces_to_tactip_frame(file_path):
 
     eulers = df[['pose_Rx', 'pose_Ry', 'pose_Rz']].to_numpy()
     rotations = R.from_euler('xyz', eulers, degrees=True)
-    
+
+    # Robot +X is physically Sensor -X  -> flip X
+    # Work frame is 180 deg about X vs base, so work +Y = sensor -Y  -> flip Y
+    # Work +Z already points into the plate (pressing reads +Fz)     -> leave Z
+    df['Fx'] = -df['Fx']
+    df['Fy'] = -df['Fy']
+
     forces_world = df[['Fx', 'Fy', 'Fz']].to_numpy()
-    
-    # Vectorized Inverse Rotation: F_tactip = R^-1 * F_world
     forces_tactip = rotations.inv().apply(forces_world)
     
     df['Fx'] = forces_tactip[:, 0]

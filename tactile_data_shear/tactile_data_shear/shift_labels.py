@@ -9,7 +9,7 @@ BBOX = { # (x0, y0, x1, y1)
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
     "ur_aerial-A1": (100, 20, 540, 460), # We just use the full resolution and set it in bbox_dict below
-    "ur_tactip":    None, #(0, 0, 480, 480) We just use the full resolution and set it in bbox_dict below
+    "ur_tactip":    (0, 0, 640, 480), # B1, B2: (0, 0, 640, 480) // Determined using tune_images.py in tactile_image_processing
     "sim_tactip":   (12, 12, 240, 240)
 }
 CIRCLE_MASK_RADIUS = {
@@ -17,7 +17,7 @@ CIRCLE_MASK_RADIUS = {
     "cr_tactip":    210,
     "mg400_tactip": None,
     "ur_aerial-A1": 230,
-    "ur_tactip":    None, #400
+    "ur_tactip":    400, # B1: 400, B2: 250 
     "sim_tactip":   240
 }
 THRESH = {
@@ -25,7 +25,7 @@ THRESH = {
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
     "ur_aerial-A1": [121, -11.0], # We just use the same as ur_tactip for now, but it might need to be tuned
-    "ur_tactip":    [61, -50.0], # Determined using tune_images.py in tactile_image_processing
+    "ur_tactip":    [61, -50], # B1: -50, B2: -75 //Determined using tune_images.py in tactile_image_processing
     "sim_tactip":   None
 }
 
@@ -124,11 +124,20 @@ def parse_args(
     return parser.parse_args()
 
 
+import shutil
+
 def reprocess_data(args, image_params, split=0.8):
     output_dir = '_'.join([args.robot, args.sensor])
 
     for args.task in args.tasks:
         path = os.path.join(BASE_DATA_PATH, output_dir, args.task)
+        
+        # Auto-clean stale processed_images folders to prevent leftover files
+        for split_name in ["train_data", "val_data"]:
+            stale_proc_dir = os.path.join(path, split_name, "processed_images")
+            if os.path.exists(stale_proc_dir):
+                shutil.rmtree(stale_proc_dir)
+
         data_dirs = partition_data(path, args.data_dirs, split)
         process_image_data(path, data_dirs, image_params)
 
@@ -180,5 +189,5 @@ if __name__ == "__main__":
             data_dirs=['data'],
             sample_nums=[3000]
         )
-    main(args, shift = -4
+    main(args, shift = -4  #-4 
     )
