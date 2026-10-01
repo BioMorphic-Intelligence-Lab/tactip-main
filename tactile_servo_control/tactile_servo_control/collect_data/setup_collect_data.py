@@ -2,40 +2,55 @@ import os
 
 from tactile_image_processing.utils import save_json_obj
 
+#  ------------------------- post processing parameters
+# first collect a few samples to verify pipeline
+# tune with /home/miantao/projects/tactip/tactile_image_processing/tactile_image_processing/utils/tune_images.py
+# tune as long as the tactip isn't facing directly into light, so can be done today
+# pixel coordinates of the image that are used
 BBOX = { # (x0, y0, x1, y1)
     "abb_tactip":   (25, 25, 305, 305),
     "cr_tactip":    (5, 10, 425, 430),
     "mg400_tactip": (10, 10, 310, 310),
     "ur_aerial-A1":    (100, 20, 540, 460), # Set resolution to final intended resolution
+    "ur_aerial-C2": (180, 15,  640, 475),
     "ur_tactip":    (0, 0, 640, 480), # Set resolution to final intended resolution: increase! [70,0, 550, 480]
     "sim_tactip":   (12, 12, 240, 240)
 }
+
+# radius
 CIRCLE_MASK_RADIUS = {
     "abb_tactip":   140,
     "cr_tactip":    210,
     "mg400_tactip": None,
     "ur_aerial-A1": 230,
+    "ur_aerial-C2": 208,
     "ur_tactip":    400, # 400
     "sim_tactip":   240
 }
+
+# adaptive binary threshold function from opencv. First number is kernel size, second is
 THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
     "mg400_tactip": [61, 5],
     "ur_aerial-A1": [121, -11], # Same as ur tactip for now, but may need adjustment
-    "ur_tactip":    [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
+    "ur_aerial-C2": [75, -30],
+    # "ur_tactip":    [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
+    "ur_tactip":    [61, -75], # [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
     "sim_tactip":   None
 }
 
 
 def setup_sensor_image_params(robot, sensor, save_dir=None):
 
+    # second bounding box, just make it capture whole image to ignore it
     bbox_dict = { # (x0, y0, x1, y1), y positive downward and x positive rightwards from top left corner
         'mini': (320-160,    240-160+25, 320+160,    240+160+25),
         'midi': (320-220+10, 240-220-20, 320+220+10, 240+220-20),
         'aerial-A3': (80, 15, 520, 455),
         'aerial-B2': (0, 0, 640, 480),
         'aerial-A1': (0, 0, 640, 480),
+        'aerial-C1': (0,0,640,480),
         'aerial-nobb': (0, 0, 640, 480),
         'aerial-A2': (0,0, 640, 480), #[0,0, 640, 480]
         'aerial-B2': (110, 25, 550, 465)
@@ -52,7 +67,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     else:
         sensor_image_params = {
             'type': sensor_type,
-            'source': 4, # Change here to use different cameras, 0 for default cam, 4 for usb
+            'source': 2, # Change here to use different cameras, 0 for default cam, 4 for usb
             'exposure': -7,
             'gray': True,
             'bbox': bbox_dict[sensor_type]
@@ -70,6 +85,8 @@ def setup_collect_params(robot, task, save_dir=None):
         robot = 'sim'
 
     # [min, max] for each dimension
+    # sample space boundaries: x y z position, x y z rotation
+    # no need for tuning
     pose_lims_dict = {
         'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3.5, 25, 25,   0)],
         'surface_5d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3.5, 25, 25,   0)],
@@ -78,6 +95,8 @@ def setup_collect_params(robot, task, save_dir=None):
         'edge_5d':    [(-5, 0, 1, -25, -25, -180), (5, 0, 5, 25, 25, 180)],
     }
 
+    # post contact motion, x y z position x y z rotation
+    # no need for tuning
     shear_lims_dict = {
         'cr':      [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
         'mg400':   [(-5, -5, 0, 0, 0, -5), (5, 5, 0, 0, 0, 5)],
@@ -134,6 +153,9 @@ def setup_env_params(robot, save_dir=None):
         'ur':    (0, 0, -85.65, 0, 0, 0), # or -87 , -85.49 check this carefully first!! -> slower the robot
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
+    # move the robot down to the surface without tactip and with tactip (using teacher's pendant) and then note their z difference
+    # note the penetration depth using a piece of paper
+    # calibrate for every tactip,
 
     env_params = {
         'robot': robot,

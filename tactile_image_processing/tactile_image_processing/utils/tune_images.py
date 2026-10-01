@@ -2,14 +2,17 @@
 Author: Martijn Brummelhuis
 """
 import cv2
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from tactile_image_processing.image_transforms import process_image
 from tactile_image_processing.simple_sensors import RealSensor
 
+matplotlib.use('TkAgg')
+
 # Set to false for using camera feed. True for using a previously captured image (specify path below).
 use_captured_data = False
-captured_image_path = '/home/martijn/ats-meta/tactile_data_shear/data/ur_tactip/surface_9d/data/sensor_images/image_10.png'
+captured_image_path = '/home/miantao/projects/tactip/tactile_data_shear/data/ur_tactip/surface_9d/data/sensor_images/image_10.png'
 
 def setup_sensor(exp=-7):
     bbox_dict = {
@@ -21,7 +24,7 @@ def setup_sensor(exp=-7):
     
     sensor_image_params = {
         'type': sensor_type,
-        'source': 5,
+        'source': 2, # set to right source from /dev/video*
         'exposure': exp,
         'gray': True,
         'bbox': bbox_dict[sensor_type]
