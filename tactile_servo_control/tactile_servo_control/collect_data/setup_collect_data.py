@@ -153,6 +153,7 @@ def setup_env_params(robot, save_dir=None):
         'ur':    (0, 0, -85.65, 0, 0, 0), # or -87 , -85.49 check this carefully first!! -> slower the robot
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
+    # the robot without tactip z value should be the 57.49 z value from work_frame_dict
     # move the robot down to the surface without tactip and with tactip (using teacher's pendant) and then note their z difference
     # note the penetration depth using a piece of paper
     # calibrate for every tactip,
