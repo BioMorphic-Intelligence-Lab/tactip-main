@@ -1,14 +1,13 @@
 """
 Author: Martijn Brummelhuis
 """
-import cv2
 import matplotlib
+matplotlib.use('TkAgg')
+import cv2
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from tactile_image_processing.image_transforms import process_image
 from tactile_image_processing.simple_sensors import RealSensor
-
-matplotlib.use('TkAgg')
 
 # Set to false for using camera feed. True for using a previously captured image (specify path below).
 use_captured_data = False

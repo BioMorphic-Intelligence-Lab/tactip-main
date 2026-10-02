@@ -33,7 +33,8 @@ def launch(args):
                 args.robot,
                 args.sensor,
                 args.task,
-                save_dir
+                save_dir,
+                collect_force=getattr(args, 'collect_force', False)
             )
 
             # setup embodiment
@@ -78,6 +79,9 @@ if __name__ == "__main__":
         data_dirs=['data'],
         sample_nums=[3000] #4000
     )
+    # Set True to sample from 3-Axis sensor; False for vision/pose-only collection
+    args.collect_force = True
+
     launch(args)
 
     embodiment = '_'.join([args.robot, args.sensor])

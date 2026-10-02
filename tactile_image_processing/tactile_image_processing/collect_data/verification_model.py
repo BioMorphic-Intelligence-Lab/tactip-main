@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import pandas as pd
 from Phidget22.Devices.VoltageRatioInput import VoltageRatioInput
+from scipy.spatial.transform import Rotation as R
 
 # Ecosystem / Framework Imports
 from tactile_image_processing.utils import load_json_obj
@@ -70,8 +71,8 @@ def process_tactip_frame_standalone(
     cv2_frame,
     bbox=(0, 0, 640, 480),          # Default crop bounding box (x0, y0, x1, y1)
     target_dims=(128, 128),
-    thresh_params=[61, -50],
-    circle_mask_radius=400
+    thresh_params=[61, -75],  # B1: -50, B2: -75 
+    circle_mask_radius= 250 # B1: 400, B2: 250
 ):
     """
     Explicit, standalone image processing pipeline matching TacTip dataset generation.
@@ -123,7 +124,7 @@ def process_tactip_frame_standalone(
 # ==========================================
 # 3. MODEL LOADER AND INFERENCE ENGINE
 # ==========================================
-def load_tactip_model(model_dir="tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_B1", device="cuda"):
+def load_tactip_model(model_dir="tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_B2", device="cuda"):
     """
     Loads model params from JSONs, builds model architecture, 
     and loads weights from best_model.pth.
@@ -161,10 +162,10 @@ def predict_tactip(model, label_encoder, cv2_frame, target_dims, device):
     # Run our standalone mimicked processing routine
     norm_img, display_img = process_tactip_frame_standalone(
         cv2_frame,
-        bbox=None,                    # Set to (x0, y0, x1, y1) if your embodiment uses camera cropping
+        bbox= (0, 0, 640, 480),                    # Set to (x0, y0, x1, y1) if your embodiment uses camera cropping
         target_dims=target_dims,       # Usually (128, 128)
-        thresh_params=[61, -50],       # TacTip standard thresholding
-        circle_mask_radius=400        # TacTip circle mask
+        thresh_params=[61, -75],       # TacTip standard thresholding
+        circle_mask_radius= 250        # TacTip circle mask
     )
     
     # Reshape (128, 128) -> Tensor (1, 1, 128, 128)
@@ -186,9 +187,9 @@ def predict_tactip(model, label_encoder, cv2_frame, target_dims, device):
 # 4. MAIN REAL-TIME VERIFICATION LOOP
 # ==========================================
 def main():
-    MODEL_DIR = "tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_B1"
+    MODEL_DIR = "tactile_data_shear/models/ur_tactip/surface_9d/simple_cnn_B2"
     CAMERA_INDEX = 4
-    TACTIP_ANGLE_DEG = 106.73  # Rotational offset between internal camera and physical tape mark
+    TACTIP_ANGLE_DEG = 0    # Rotational offset between internal camera and physical tape mark
     
     print(f"Loading model framework from '{MODEL_DIR}'...")
     model, label_encoder, model_image_params, device = load_tactip_model(MODEL_DIR)
@@ -207,7 +208,7 @@ def main():
 
     # Software Zero-Tare Routine
     print("\n[TARE] Zeroing baseline offsets... Ensure TacTip is NOT touching anything.")
-    time.sleep(1.0)
+    time.sleep(120)
     
     phidget_samples_x, phidget_samples_y, phidget_samples_z = [], [], []
     tactip_samples_x, tactip_samples_y, tactip_samples_z = [], [], []
@@ -247,21 +248,45 @@ def main():
 
             # 1. Get Reference Forces (Phidget)
             p_fx, p_fy, p_fz = phidget.get_forces_in_newtons()
-            ref_fx = p_fx - phidget_tare[0]
-            ref_fy = p_fy - phidget_tare[1]
-            ref_fz = p_fz - phidget_tare[2]
+            ref_fx = -(p_fx - phidget_tare[0])
+            ref_fy = -(p_fy - phidget_tare[1])
+            ref_fz =  (p_fz - phidget_tare[2])
 
             # 2. Get Model Predictions (TacTip)
             preds, proc_display = predict_tactip(model, label_encoder, frame, target_dims, device)
+
             
             raw_fx = preds.get('Fx', 0.0) - tactip_tare[0]
             raw_fy = preds.get('Fy', 0.0) - tactip_tare[1]
-            pred_fz = preds.get('Fz', 0.0) - tactip_tare[2]
+            raw_fz = preds.get('Fz', 0.0) - tactip_tare[2]
 
-            # Apply 2D Rotation Matrix 
-            theta_rad = np.radians(TACTIP_ANGLE_DEG)
-            pred_fx = np.cos(theta_rad) * raw_fx - np.sin(theta_rad) * raw_fy
-            pred_fy = np.sin(theta_rad) * raw_fx + np.cos(theta_rad) * raw_fy
+            # Extract predicted contact tilt angles
+            pred_rx = preds.get('pose_Rx', 0.0)
+            pred_ry = preds.get('pose_Ry', 0.0)
+            pred_rz = preds.get('pose_Rz', 0.0)
+
+            # Predicted contact depth (mm), logged to check for range saturation
+            pred_z = preds.get('pose_z', 0.0)
+
+            # --- 3D ROTATION TRANSFORMATION ---
+            # 1. Align internal camera frame to sensor housing (Z rotation)
+            r_internal = R.from_euler('z', TACTIP_ANGLE_DEG, degrees=True)
+            
+            # 2. Compensate for physical tilt (map TacTip frame -> Table/World frame)
+            r_pose = R.from_euler('xyz', [pred_rx, pred_ry, pred_rz], degrees=True)
+            
+            # 3. Combine rotations and apply to force vector
+            aligned_force = (r_internal * r_pose).apply([raw_fx, raw_fy, raw_fz])
+
+            pred_fx = aligned_force[0]
+            pred_fy = aligned_force[1]
+            pred_fz = aligned_force[2]
+            '''
+            pred_fx = preds.get('Fx', 0.0) - tactip_tare[0]
+            pred_fy = preds.get('Fy', 0.0) - tactip_tare[1]
+            pred_fz = preds.get('Fz', 0.0) - tactip_tare[2]
+            '''
+            
 
             current_time = time.time() - start_time
 
@@ -271,6 +296,8 @@ def main():
                     'timestamp': current_time,
                     'ref_Fx': ref_fx, 'ref_Fy': ref_fy, 'ref_Fz': ref_fz,
                     'pred_Fx': pred_fx, 'pred_Fy': pred_fy, 'pred_Fz': pred_fz,
+                    'pred_pose_z': pred_z,
+                    'pred_Rx': pred_rx, 'pred_Ry': pred_ry,
                     'error_Fx': abs(ref_fx - pred_fx),
                     'error_Fy': abs(ref_fy - pred_fy),
                     'error_Fz': abs(ref_fz - pred_fz)

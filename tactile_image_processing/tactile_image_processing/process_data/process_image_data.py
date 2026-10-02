@@ -27,7 +27,7 @@ def process_image_data(path, dir_names, image_params={}):
         targets_df = pd.read_csv(os.path.join(path, dir_name, 'targets.csv'))
 
         # intitialise display
-        cv2.namedWindow("processed_image")
+        #cv2.namedWindow("processed_image")
 
         # process images
         image_filenames = []
@@ -45,9 +45,9 @@ def process_image_data(path, dir_names, image_params={}):
 
             # report
             print(f'processed {dir_name}: {image_name} as {image_filename}')
-            cv2.imshow("processed_image", image)
-            if cv2.waitKey(1)==27:    # Esc key to stop
-                exit()
+            #cv2.imshow("processed_image", image)
+            #if cv2.waitKey(1)==27:    # Esc key to stop
+            #    exit()
 
         # try to process any zeroth/init images
         for image_name in ['image_0.png', 'frame_init_0.png']:

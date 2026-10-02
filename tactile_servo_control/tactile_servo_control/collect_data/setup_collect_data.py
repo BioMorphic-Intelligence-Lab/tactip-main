@@ -23,12 +23,9 @@ CIRCLE_MASK_RADIUS = {
     "cr_tactip":    210,
     "mg400_tactip": None,
     "ur_aerial-A1": 230,
-    "ur_aerial-C2": 208,
     "ur_tactip":    400, # 400
     "sim_tactip":   240
 }
-
-# adaptive binary threshold function from opencv. First number is kernel size, second is
 THRESH = {
     "abb_tactip":   [61, 5],
     "cr_tactip":    [61, 5],
@@ -36,7 +33,7 @@ THRESH = {
     "ur_aerial-A1": [121, -11], # Same as ur tactip for now, but may need adjustment
     "ur_aerial-C2": [75, -30],
     # "ur_tactip":    [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
-    "ur_tactip":    [61, -75], # [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75]
+    "ur_tactip":    [61, -50], # Determined using tune_images.py in tactile_image_processing: [61, -75] -> A-1, [61, -50] -> B-1
     "sim_tactip":   None
 }
 
@@ -79,7 +76,7 @@ def setup_sensor_image_params(robot, sensor, save_dir=None):
     return sensor_image_params
 
 
-def setup_collect_params(robot, task, save_dir=None):
+def setup_collect_params(robot, task, save_dir=None, collect_force=False):
 
     if robot.split('_')[0] == 'sim':
         robot = 'sim'
@@ -88,7 +85,7 @@ def setup_collect_params(robot, task, save_dir=None):
     # sample space boundaries: x y z position, x y z rotation
     # no need for tuning
     pose_lims_dict = {
-        'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3.5, 25, 25,   0)],
+        'surface_3d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3, 25, 25,   0)],
         'surface_5d': [(0, 0, 0.5,  -25, -25,    0), (0, 0, 3.5, 25, 25,   0)],
         'edge_2d':    [(-5, 0, 3,   0,   0, -180), (5, 0, 4,  0,  0, 180)],
         'edge_3d':    [(-5, 0, 1,   0,   0, -180), (5, 0, 5,  0,  0, 180)],
@@ -120,7 +117,8 @@ def setup_collect_params(robot, task, save_dir=None):
         'object_poses': object_poses_dict[task],
         'sample_disk': True,
         'sort': False,
-        'seed': 0
+        'seed': 0,
+        'collect_force': collect_force,
     }
 
     if robot == 'sim':
@@ -150,7 +148,7 @@ def setup_env_params(robot, save_dir=None):
     tcp_pose_dict = {
         'cr':    (0, 0, -70, 0, 0, 0),
         'mg400': (0, 0, -50, 0, 0, 0),
-        'ur':    (0, 0, -85.65, 0, 0, 0), # or -87 , -85.49 check this carefully first!! -> slower the robot
+        'ur':    (0, 0, -86.5, 0, 0, 0), # or -87 , -85.5 check this carefully first!! -> slower the robot
         'sim':   (0, 0, -85, 0, 0, 0),
     }  # SHOULD BE ROBOT + SENSOR
     # the robot without tactip z value should be the 57.49 z value from work_frame_dict
@@ -176,8 +174,8 @@ def setup_env_params(robot, save_dir=None):
     return env_params
 
 
-def setup_collect_data(robot, sensor, task, save_dir=None):
-    collect_params = setup_collect_params(robot, task, save_dir)
+def setup_collect_data(robot, sensor, task, save_dir=None, collect_force=False):
+    collect_params = setup_collect_params(robot, task, save_dir, collect_force=collect_force)
     sensor_image_params = setup_sensor_image_params(robot, sensor, save_dir)
     env_params = setup_env_params(robot, save_dir)
 

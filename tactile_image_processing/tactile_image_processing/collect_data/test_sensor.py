@@ -96,7 +96,7 @@ if __name__ == "__main__":
         
         # Automated Software Zero-Tare Routine
         print("\nTaring sensor baseline offsets... Do not touch the sensor structure.")
-        time.sleep(1.5)  # Let signals stabilize
+        time.sleep(120)  # Let signals stabilize
         
         # Take 10 rapid samples to build a steady baseline average
         samples_x, samples_y, samples_z = [], [], []
